@@ -4,7 +4,7 @@
 GI_CFG_KEYS=(format keymap disk filesystem encryption luks_discard swap init desktop
   gnome_variant display_manager bootloader kernel nvidia_driver network keep_wifi wifi_ssid
   audio bluetooth power thermald fwupd sshd hostname timezone locales lang root users
-  privilege mirror binpkgs cflags makeopts emerge_jobs tune browser fonts_cjk packages explain)
+  privilege mirror binpkgs cflags makeopts emerge_jobs tune browser fonts_cjk media_keys packages explain)
 declare -gA GI_CFG_LOCKED=()
 
 # Accounts and groups the stage3 or the packages we install already have.
@@ -82,7 +82,7 @@ _cfg_check() { # KEY VALUE; prints the problem and returns 1
     root) _cfg_enum "$v" password locked ;;
     privilege) _cfg_enum "$v" sudo doas ;;
     browser) _cfg_enum "$v" firefox-bin chromium none ;;
-    luks_discard | keep_wifi | bluetooth | thermald | fwupd | sshd | binpkgs | tune | fonts_cjk | explain)
+    luks_discard | keep_wifi | bluetooth | thermald | fwupd | sshd | binpkgs | tune | fonts_cjk | media_keys | explain)
       _cfg_enum "$v" yes no
       ;;
     wifi_ssid)
@@ -232,6 +232,7 @@ cfg_defaults_apply() {
   _cfg_default tune no
   _cfg_default browser firefox-bin
   _cfg_default fonts_cjk no
+  _cfg_default media_keys no
   _cfg_default packages ''
   _cfg_default explain no
   read -ra users <<< "${CFG[users]}"

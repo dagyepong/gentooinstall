@@ -162,10 +162,11 @@ gi() { "$TREE/gentooinstall" "$@"; }
   grep -qx 'packages=app-misc/hello' "$GI_TARGET/var/lib/gentooinstall/config"
 
   # Now every step is done: the package list and the timezone were used.
-  printf 'packages=app-misc/hello app-editors/vim\ntimezone=UTC\nhostname=laptop\n' > "$BATS_TEST_TMPDIR/change"
+  printf 'packages=app-misc/hello app-editors/vim\ntimezone=UTC\nhostname=laptop\nmedia_keys=yes\n' > "$BATS_TEST_TMPDIR/change"
   run --separate-stderr gi --resume --yes --no-tui --config "$BATS_TEST_TMPDIR/change" --secrets "$BATS_TEST_TMPDIR/secrets"
   [ "$status" -eq 2 ]
   [[ $stderr == *'packages can'"'"'t change on --resume: the step "Title world" already used it.'* ]]
+  [[ $stderr == *'media_keys can'"'"'t change on --resume: the step "Title world" already used it.'* ]]
   [[ $stderr == *'timezone can'"'"'t change on --resume: the step "Title locale" already used it.'* ]]
   # hostname is unchanged, and explain may always change.
   [[ $stderr != *hostname* ]]

@@ -246,6 +246,9 @@ WMS = {
     "niri": ("niri alacritty fuzzel waybar swaylock", ""),
     "mangowm": ("mango foot rofi", ""),
 }
+# With media_keys=yes: what the default config's brightness, player and Print keys call.
+MEDIA_KEYS = {"sway": "brightnessctl playerctl grim", "hyprland": "brightnessctl playerctl",
+              "niri": "brightnessctl playerctl"}
 
 # Where each Wayland session's keyboard layout lands, as a check on the layout $l.
 KBD = {
@@ -322,6 +325,12 @@ def checks(cfg, pw):
                   "grep -A1 'start the desktop with:' ~/first-steps.txt"))
         if conf:
             c.append((f"{desktop}'s default config loads", conf))
+    if cfg.get("media_keys") == "yes" and desktop in MEDIA_KEYS:
+        # Not setuid: on OpenRC its udev rule lets the video group write the brightness, on systemd logind does.
+        c.append((f"{desktop}'s media key programs are installed, brightnessctl not setuid",
+                  f"for p in {MEDIA_KEYS[desktop]}; do command -v $p || {{ echo \"missing $p\"; exit 1; }}; done && "
+                  "b=$(command -v brightnessctl) && ls -l \"$b\" && test ! -u \"$b\"" +
+                  (" && cat /lib/udev/rules.d/90-brightnessctl.rules" if init == "openrc" else "")))
     if desktop in KBD:
         # Wayland sessions don't read xorg.conf.d; the installer gives each the X layout its own way.
         c.append((f"{desktop} gets the keyboard layout",

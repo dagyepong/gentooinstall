@@ -216,6 +216,8 @@ $code"
     b y
   [ "$status" -eq 130 ]
   [[ $stderr == *"== Fix these first =="*"Locking root needs at least one admin user."* ]]
+  # A fish login shell misses /etc/profile.env, and the question says so.
+  [[ $stderr == *"== Shell =="$'\n'"The login shell for larry. Fish, as a login shell, doesn't read /etc/profile.env, so it misses system variables set through /etc/env.d (Gentoo bug 545830); the installer adds only the keyboard layout ones."$'\n'* ]]
   source "$STATE"
   [ "${CFG[users]}" = larry ]
   [ "${CFG[user.larry.shell]}" = fish ]
@@ -607,6 +609,93 @@ $code"
   source "$STATE"
   [ "${CFG[desktop]}" = i3 ]
   [ "${CFG[display_manager]}" = auto ]
+}
+
+@test "Media keys: a row for sway, Hyprland and niri only, off by default, with GURU named where it adds it" {
+  local code='source "$GI_HOME/lib/steps/hardware.sh"; cfg_defaults_apply; questions_run'
+  q_run "$code" 4 1 "$(desktop_choice sway)" 7 '?' 2 1 "$(desktop_choice i3)" b b y
+  [ "$status" -eq 130 ]
+  # Plasma, the default, has none.
+  local first=${stderr#*== Desktop ==}
+  first=${first%%== Desktop ==*}
+  [[ $first != *"Media keys"* ]]
+  [[ $stderr =~ Media\ keys\ +no ]]
+  [[ $stderr == *"Sway's default config calls brightnessctl, playerctl and grim for the brightness, player and Print keys. Installing them builds 3 small packages from source."* ]]
+  [[ $stderr == *"The volume keys work either way."* ]]
+  [[ $stderr == *"Leave them out. Recommended.: Those keys do nothing until you install the programs."* ]]
+  [[ $stderr == *"Install them.: brightnessctl is from GURU, a user overlay that Gentoo doesn't review."$'\n'* ]]
+  local last=${stderr##*== Desktop ==}
+  last=${last%%== Install Gentoo ==*}
+  [[ $last =~ Desktop\ +i3 ]]
+  [[ $last != *"Media keys"* ]]
+  source "$STATE"
+  [ "${CFG[media_keys]}" = yes ]
+  q_run "$code" 4 1 "$(desktop_choice hyprland)" 7 '?' 2 b b y
+  [[ $stderr == *"Hyprland's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source."* ]]
+  [[ $stderr == *"Install them.: brightnessctl is from GURU, a user overlay that Gentoo doesn't review."* ]]
+  q_run "$code" 4 1 "$(desktop_choice niri)" 7 '?' 2 b b y
+  [[ $stderr == *"Niri's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source."* ]]
+  [[ $stderr == *"Install them.: Builds them from source."* ]]
+}
+
+@test "the media keys question names what the desktop step installs, and GURU where the portage step adds it" {
+  gi_load core ui config state questions desktop portage
+  local d t tools text ovl
+  cfg_defaults_apply
+  ui_radio() { printf '%s\n' "$@" > "$BATS_TEST_TMPDIR/radio"; return 1; }
+  for d in plasma gnome xfce budgie cinnamon i3 sway hyprland niri mangowm dwm dwl none; do
+    CFG[desktop]=$d CFG[media_keys]=yes
+    tools=$(_desktop_media_keys) text=$(_q_media_keys)
+    if [[ -z $tools ]]; then
+      [ -z "$text" ] || { echo "$d: $text"; false; }
+      continue
+    fi
+    for t in $tools; do [[ $text == *" ${t#*/}"[\ ,]* ]] || { echo "$d: $t"; false; }; done
+    _q_edit media_keys || true
+    ovl=$(_portage_overlay)
+    CFG[media_keys]=no
+    if [[ $ovl != "$(_portage_overlay)" ]]; then
+      grep -q GURU "$BATS_TEST_TMPDIR/radio" || { echo "$d: no GURU"; false; }
+    else
+      run ! grep -q GURU "$BATS_TEST_TMPDIR/radio"
+    fi
+  done
+}
+
+@test "the media keys and shell choices' help fits the one line dialog shows it on at 80 columns" {
+  gi_load core ui config state questions
+  local k i
+  local -a a=()
+  cfg_defaults_apply
+  CFG[users]=alice
+  ui_radio() { printf '%s\n' "$@" > "$BATS_TEST_TMPDIR/radio"; return 1; }
+  # dialog drops the words past 78 characters.
+  for k in sway hyprland niri shell; do
+    if [[ $k == shell ]]; then _q_edit user.alice.shell || true; else CFG[desktop]=$k && { _q_edit media_keys || true; }; fi
+    mapfile -t a < "$BATS_TEST_TMPDIR/radio"
+    for ((i = 5; i < ${#a[@]}; i += 3)); do ((${#a[i]} <= 78)) || { echo "$k: ${a[i]}"; false; }; done
+  done
+}
+
+@test "the media keys row and question claim only what the desktop and audio answers give" {
+  gi_load core ui config state questions desktop
+  local d row text
+  cfg_defaults_apply
+  ui_radio() { printf '%s\n' "$@" > "$BATS_TEST_TMPDIR/radio"; return 1; }
+  for d in sway hyprland niri; do
+    CFG[desktop]=$d CFG[media_keys]=yes CFG[audio]=pipewire
+    row=$(_q_keys Desktop | grep '^media_keys' | cut -f3)
+    ((${#row} <= 78))
+    # Only sway's config has a screenshot program to install.
+    if [[ $row == *[Ss]creenshot* || $row == *Print* ]]; then [[ $(_desktop_media_keys) == *grim* ]]; fi
+    _q_edit media_keys || true
+    [[ $(sed -n 2p "$BATS_TEST_TMPDIR/radio") == *" The volume keys work either way." ]]
+    # Without a sound server pactl and wpctl have nothing to talk to.
+    CFG[audio]=none
+    _q_edit media_keys || true
+    text=$(sed -n 2p "$BATS_TEST_TMPDIR/radio")
+    [[ $text != *"work either way"* && $text == *"With Audio set to none, the volume keys do nothing either way." ]]
+  done
 }
 
 @test "the login screen the menus name is the one the desktop step installs, for every desktop" {

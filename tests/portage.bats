@@ -238,6 +238,35 @@ git_clones() {
   [ -z "$(step_portage_packages)" ]
 }
 
+@test "media keys add GURU for brightnessctl beside the desktop's own overlay, and take it away when turned off" {
+  git_clones
+  CFG[desktop]=sway CFG[media_keys]=yes
+  portage_configure
+  [ "$(ls "$GI_TARGET/etc/portage/repos.conf")" = guru.conf ]
+  [ -d "$GI_TARGET/var/db/repos/guru/profiles" ]
+  [ "$(step_portage_packages)" = dev-vcs/git ]
+  CFG[desktop]=hyprland
+  portage_configure
+  [ "$(ls "$GI_TARGET/etc/portage/repos.conf" | tr '\n' ' ')" = 'guru.conf hyproverlay.conf ' ]
+  [ -d "$GI_TARGET/var/db/repos/hyproverlay/profiles" ]
+  [ -d "$GI_TARGET/var/db/repos/guru/profiles" ]
+  # Niri comes from GURU already: one copy.
+  : > "$STUB_LOG"
+  CFG[desktop]=niri
+  portage_configure
+  [ "$(ls "$GI_TARGET/etc/portage/repos.conf")" = guru.conf ]
+  run ! grep -q '^git' "$STUB_LOG"
+  CFG[desktop]=hyprland CFG[media_keys]=no
+  portage_configure
+  [ "$(ls "$GI_TARGET/etc/portage/repos.conf")" = hyproverlay.conf ]
+  [ ! -e "$GI_TARGET/var/db/repos/guru" ]
+  # The window managers whose default config calls no brightnessctl get no overlay for it.
+  CFG[desktop]=i3 CFG[media_keys]=yes
+  portage_configure
+  [ -z "$(ls -A "$GI_TARGET/etc/portage/repos.conf")" ]
+  [ -z "$(step_portage_packages)" ]
+}
+
 @test "a clone that failed halfway is thrown away and copied again" {
   CFG[desktop]=hyprland
   mkdir -p "$GI_TARGET/var/db/repos/hyproverlay.new/half"

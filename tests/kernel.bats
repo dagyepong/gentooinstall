@@ -220,6 +220,11 @@ kernel_cleanup() { # RUNNING_VERSION [EROOT [no-kernel-install]]
   [ "$status" -eq 0 ]
   [ "$output" = $'kernel-install remove 6.18.1\nelog: Removed the old kernel 6.18.1 and its modules.' ]
   [ "$(ls "$m")" = $'6.18.10\n6.18.2\n6.18.3\n6.18.4' ]
+  # In a live system's chroot the running kernel isn't this system's, so 6.18.2, which last ran, stays.
+  run kernel_cleanup 6.12.41-gentoo-live
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ "$(ls "$m")" = $'6.18.10\n6.18.2\n6.18.3\n6.18.4' ]
   # After a reboot into 6.18.10, the next removal takes the kept 6.18.2.
   run kernel_cleanup 6.18.10
   [ "$output" = $'kernel-install remove 6.18.2\nelog: Removed the old kernel 6.18.2 and its modules.' ]
@@ -280,7 +285,8 @@ grub-mkconfig -o $b/grub/grub.cfg" ]
   [ "$(LC_ALL=C ls "$b" | tr '\n' ' ')" = "$(printf '%s ' System.map-6.18.{10,3,4} amd-uc.img config-6.18.{10,3,4} grub \
     initramfs-6.18.{10,3,4}.img vmlinuz-6.18.10 vmlinuz-6.18.10.old vmlinuz-6.18.{3,4})" ]
   [ "$(ls "$m")" = $'6.18.10\n6.18.3\n6.18.4' ]
-  run kernel_cleanup 6.18.10
+  # Booted into 6.18.3, the newest stays too, though no kernel-* name is left for the glob to match.
+  run kernel_cleanup 6.18.3
   [ "$status" -eq 0 ]
   [ -z "$output" ]
   # An emerge --root into another system leaves this /boot and /lib/modules alone.
@@ -520,6 +526,24 @@ limine_conf() {
   run step_kernel
   [ "$status" -eq 0 ]
   chroot_ran 'emerge --config sys-kernel/gentoo-kernel-bin'
+}
+
+@test "step: with two kernel slots installed, rebuilds each one's initramfs by version" {
+  local p=$GI_TARGET/var/db/pkg/sys-kernel
+  bls_entry
+  # An LTS slot from packages, a newer slot after a sync, and the other kernel from an earlier answer.
+  mkdir -p "$p"/{gentoo-kernel-bin-6.6.160,gentoo-kernel-bin-6.18.58-r1,gentoo-kernel-6.18.57,-MERGING-gentoo-kernel-bin-6.18.59,linux-firmware-20251010}
+  run step_kernel
+  [ "$status" -eq 0 ]
+  [ "$(grep -c -- '--config' "$STUB_LOG")" -eq 3 ]
+  chroot_ran 'emerge --config =sys-kernel/gentoo-kernel-6.18.57'
+  chroot_ran 'emerge --config =sys-kernel/gentoo-kernel-bin-6.18.58-r1'
+  chroot_ran 'emerge --config =sys-kernel/gentoo-kernel-bin-6.6.160'
+  # The first failure fails the step.
+  : > "$STUB_LOG"
+  STUB_RC_arch_chroot=1 run kernel_reinstall
+  [ "$status" -eq 1 ]
+  [ "$(grep -c -- '--config' "$STUB_LOG")" -eq 1 ]
 }
 
 @test "step: a GRUB config left from an earlier answer goes, or the cleanup hook would look in /boot instead of the ESP" {

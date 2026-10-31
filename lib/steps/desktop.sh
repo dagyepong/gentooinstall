@@ -38,10 +38,10 @@ step_desktop_portage() {
       kw=$'*/*::SarahMiaOverlay ~amd64\ngui-wm/labwc ~amd64\ndev-cpp/toml11 ~amd64'
       use=$'app-i18n/ibus vala\ndev-libs/libpeas vala\ngui-apps/swaybg gdk-pixbuf\ngui-libs/gtk-layer-shell introspection vala\nsys-apps/accountsservice vala\nxfce-base/libxfce4windowing vala'
       ;;
-    # xdg-desktop-portal-hyprland needs sdbus-c++ 2.
-    hyprland) kw=$'*/*::hyproverlay ~amd64\ndev-cpp/sdbus-c++ ~amd64' ;;
-    # The binary host's only OpenRC webkit-gtk has keyring; without it webkit-gtk compiles for hours.
-    cinnamon) if is_openrc; then use='net-libs/webkit-gtk keyring'; fi ;;
+    # xdg-desktop-portal-hyprland needs sdbus-c++ 2. The binary host's libheif has gdk-pixbuf.
+    hyprland) kw=$'*/*::hyproverlay ~amd64\ndev-cpp/sdbus-c++ ~amd64' use='media-libs/libheif gdk-pixbuf' ;;
+    # The flags of the binary host's only OpenRC builds of these; without keyring webkit-gtk compiles for hours.
+    cinnamon) if is_openrc; then use=$'gnome-base/gvfs gnome-online-accounts keyring\nmedia-video/pipewire gstreamer\nnet-libs/webkit-gtk keyring\nsys-apps/xdg-desktop-portal gstreamer'; fi ;;
     # screencast builds the screen sharing that xdg-desktop-portal-gnome serves for niri.
     niri) kw=$'gui-wm/niri::guru ~amd64\ngui-apps/fuzzel::guru ~amd64' use='gui-wm/niri screencast' ;;
     mangowm) kw=$'gui-wm/mangowm::guru ~amd64\ngui-libs/scenefx::guru ~amd64' ;;
@@ -50,6 +50,13 @@ step_desktop_portage() {
     # start shows a config error bar.
     sway) use=$'gui-wm/sway wallpapers\ngui-apps/swaybg gdk-pixbuf' ;;
   esac
+  # brightnessctl is in GURU only, as a testing package. On OpenRC udev installs its rule that lets
+  # the video group, which every user is in, set the brightness; systemd's profile flag uses logind
+  # instead. With neither the program is setuid root.
+  if [[ $(_desktop_media_keys) == *brightnessctl* ]]; then
+    kw+=${kw:+$'\n'}'app-misc/brightnessctl::guru ~amd64'
+    use+=${use:+$'\n'}'app-misc/brightnessctl udev'
+  fi
   _desktop_portage_file package.accept_keywords "$kw"
   _desktop_portage_file package.use "$use"
 }
@@ -106,6 +113,17 @@ step_desktop_packages() {
   if [[ ${CFG[browser]} != none ]]; then p+=("www-client/${CFG[browser]}"); fi
   if [[ " ${HW[gpus]:-} " == *" intel "* ]]; then p+=(media-libs/libva-intel-media-driver); fi
   printf '%s\n' "${p[@]}"
+  _desktop_media_keys
+}
+
+# With media_keys=yes, the programs the brightness, player and Print keys in the window manager's
+# shipped config call. Its volume keys use pactl or wpctl, which come with the audio packages.
+_desktop_media_keys() {
+  [[ ${CFG[media_keys]} == yes ]] || return 0
+  case ${CFG[desktop]} in
+    sway) printf '%s\n' app-misc/brightnessctl media-sound/playerctl gui-apps/grim ;;
+    hyprland | niri) printf '%s\n' app-misc/brightnessctl media-sound/playerctl ;;
+  esac
 }
 
 step_desktop() {

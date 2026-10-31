@@ -198,7 +198,7 @@ own_packages() { step_desktop_packages | sed '/^media-fonts\/noto$/,$d' | tr '\n
   CFG[desktop]=hyprland
   step_desktop_portage
   [ "$(cat "$KW")" = $'*/*::hyproverlay ~amd64\ndev-cpp/sdbus-c++ ~amd64' ]
-  [ ! -e "$UE" ]
+  [ "$(cat "$UE")" = 'media-libs/libheif gdk-pixbuf' ]
   CFG[desktop]=niri
   step_desktop_portage
   step_desktop_portage
@@ -216,12 +216,17 @@ own_packages() { step_desktop_packages | sed '/^media-fonts\/noto$/,$d' | tr '\n
   step_desktop_portage
   [ "$(cat "$KW")" = 'gui-wm/dwl ~amd64' ]
   [ ! -e "$UE" ]
-  # webkit-gtk's only OpenRC binary has keyring.
+  # The flags of the only OpenRC binaries of these; systemd's match the defaults.
   CFG[desktop]=cinnamon
   step_desktop_portage
-  [ "$(cat "$UE")" = 'net-libs/webkit-gtk keyring' ]
+  [ "$(cat "$UE")" = $'gnome-base/gvfs gnome-online-accounts keyring\nmedia-video/pipewire gstreamer\nnet-libs/webkit-gtk keyring\nsys-apps/xdg-desktop-portal gstreamer' ]
   CFG[init]=systemd
   step_desktop_portage
+  [ ! -e "$UE" ]
+  # libheif's binary has gdk-pixbuf on both inits.
+  CFG[desktop]=hyprland
+  step_desktop_portage
+  [ "$(cat "$UE")" = 'media-libs/libheif gdk-pixbuf' ]
   # Its default config's wallpaper; the binary host's sway has none, so it shows a config error.
   CFG[desktop]=sway
   step_desktop_portage
@@ -233,6 +238,42 @@ own_packages() { step_desktop_packages | sed '/^media-fonts\/noto$/,$d' | tr '\n
     [ ! -e "$KW" ]
     [ ! -e "$UE" ]
   done
+}
+
+@test "media keys install what the window manager's default config calls, brightnessctl from GURU with its udev rule" {
+  KW=$GI_TARGET/etc/portage/package.accept_keywords/desktop UE=$GI_TARGET/etc/portage/package.use/desktop
+  cfg_defaults_apply
+  local d
+  # Off by default: nothing extra.
+  for d in sway hyprland niri; do
+    CFG[desktop]=$d
+    [[ ! $(step_desktop_packages) =~ brightnessctl|playerctl|grim ]]
+  done
+  CFG[media_keys]=yes CFG[desktop]=sway
+  [ "$(step_desktop_packages | tail -n 3 | tr '\n' ' ')" = 'app-misc/brightnessctl media-sound/playerctl gui-apps/grim ' ]
+  step_desktop_portage
+  [ "$(cat "$KW")" = 'app-misc/brightnessctl::guru ~amd64' ]
+  [ "$(cat "$UE")" = $'gui-wm/sway wallpapers\ngui-apps/swaybg gdk-pixbuf\napp-misc/brightnessctl udev' ]
+  for d in hyprland niri; do
+    CFG[desktop]=$d
+    [ "$(step_desktop_packages | tail -n 2 | tr '\n' ' ')" = 'app-misc/brightnessctl media-sound/playerctl ' ]
+    step_desktop_portage
+    [ "$(tail -n 1 "$KW")" = 'app-misc/brightnessctl::guru ~amd64' ]
+    [ "$(tail -n 1 "$UE")" = 'app-misc/brightnessctl udev' ]
+  done
+  grep -qx 'gui-wm/niri::guru ~amd64' "$KW"
+  # Their default configs call none of these; the full desktops handle their own keys.
+  for d in i3 mangowm dwm dwl plasma gnome xfce budgie cinnamon none; do
+    CFG[desktop]=$d
+    [[ ! $(step_desktop_packages) =~ brightnessctl|playerctl|grim ]]
+    step_desktop_portage
+    run ! grep -qs brightnessctl "$KW" "$UE"
+  done
+  # Turned off again, the keyword and flag go.
+  CFG[desktop]=sway CFG[media_keys]=no
+  step_desktop_portage
+  [ ! -e "$KW" ]
+  run ! grep -q brightnessctl "$UE"
 }
 
 @test "LightDM starts through display-manager on OpenRC and as lightdm.service on systemd" {

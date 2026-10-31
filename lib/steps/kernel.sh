@@ -58,6 +58,10 @@ post_pkg_postrm() {
 	local -a vers=()
 	# Not for an emerge --root into another system: its kernels aren't the ones in /boot and /efi.
 	[[ -z ${EROOT%/} ]] || return 0
+	running=$(uname -r)
+	# Nor from a live system's chroot: its running kernel isn't this system's, so the one that last
+	# ran here, the known-good fallback, would go.
+	[[ -d /lib/modules/${running} ]] || return 0
 	if [[ -f /boot/grub/grub.cfg ]]; then
 		# installkernel names a kernel vmlinuz-<version>, or kernel-<version> through systemd's
 		# kernel-install, and keeps the files a same-version reinstall replaced as <name>.old.
@@ -74,7 +78,6 @@ post_pkg_postrm() {
 		done
 	fi
 	newest=$(printf '%s\n' "${vers[@]}" | sort -V | tail -n 1)
-	running=$(uname -r)
 	for v in "${vers[@]}"; do
 		# Only a kernel release, one name under /lib/modules, may reach rm -rf. Portage keeps a removed
 		# kernel's modules, so one without them is a copy, another system's or one built without modules.
@@ -223,7 +226,20 @@ step_kernel() {
   kernel_check
 }
 
-kernel_reinstall() { emerge_run --config "sys-kernel/${CFG[kernel]}"; }
+# Every installed kernel is in the boot menu, so each gets a new initramfs. With two slots, as from an
+# LTS kernel in packages or a sync before a retry, emerge --config refuses a name without a version.
+kernel_reinstall() {
+  local d
+  local -a atoms=()
+  for d in "$GI_TARGET"/var/db/pkg/sys-kernel/gentoo-kernel{,-bin}-[0-9]*/; do
+    if [[ -d $d ]]; then
+      d=${d%/}
+      atoms+=("=sys-kernel/${d##*/}")
+    fi
+  done
+  if ((!${#atoms[@]})); then atoms=("sys-kernel/${CFG[kernel]}"); fi
+  for d in "${atoms[@]}"; do emerge_run --config "$d" || return; done
+}
 
 kernel_cmdline() {
   local root_uuid luks_uuid

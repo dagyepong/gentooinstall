@@ -105,24 +105,28 @@ _portage_overlays() {
     'SarahMiaOverlay https://gitlab.com/SarahMia/sarahmiaoverlay.git'
 }
 
-# Prints the overlay the chosen desktop comes from, or nothing.
+# Prints the overlays the answers need, space-separated, or nothing.
 _portage_overlay() {
+  local o=''
   case ${CFG[desktop]} in
-    budgie) echo SarahMiaOverlay ;;
-    hyprland) echo hyproverlay ;;
-    niri | mangowm) echo guru ;;
+    budgie) o=SarahMiaOverlay ;;
+    hyprland) o=hyproverlay ;;
+    niri | mangowm) o=guru ;;
   esac
+  # brightnessctl, which the media keys of sway's and Hyprland's default configs call, is in GURU only.
+  if [[ ${CFG[media_keys]} == yes && " sway hyprland " == *" ${CFG[desktop]} "* ]]; then o+=${o:+ }guru; fi
+  printf '%s' "$o"
 }
 
-# Adds the desktop's overlay as a plain repos.conf entry with git sync, and removes one an earlier
-# answer added. The stage3 has no git, so the first copy comes from the live system's git, which
+# Adds each overlay the answers need as a plain repos.conf entry with git sync, and removes one an
+# earlier answer added. The stage3 has no git, so the first copy comes from the live system's git, which
 # the minimal ISO ships; the package install adds git, so emerge --sync updates it later.
 _portage_repos() {
   local want name url conf dir
   want=$(_portage_overlay)
   while read -r name url; do
     conf=/etc/portage/repos.conf/$name.conf dir=/var/db/repos/$name
-    if [[ $name != "$want" ]]; then
+    if [[ " $want " != *" $name "* ]]; then
       if [[ -e $GI_TARGET$conf ]]; then run_cmd rm -f -- "$GI_TARGET$conf"; fi
       # .new is a clone that stopped halfway.
       if [[ -e $GI_TARGET$dir || -e $GI_TARGET$dir.new ]]; then run_cmd rm -rf -- "$GI_TARGET$dir" "$GI_TARGET$dir.new"; fi
@@ -132,7 +136,7 @@ _portage_repos() {
     # waybar-0.15.0 carries the patch for Hyprland's Lua IPC. No tie in any install set has a binary.
     printf '[%s]\nlocation = %s\nsync-type = git\nsync-uri = %s\n' "$name" "$dir" "$url" | write_file "$conf"
     [[ ! -d $GI_TARGET$dir ]] || continue
-    command -v git > /dev/null || die "The ${CFG[desktop]} desktop comes from the $name overlay, and copying it needs git, which this live system doesn't have."
+    command -v git > /dev/null || die "Copying the $name overlay needs git, which this live system doesn't have."
     # Cloned beside its place and moved there when complete, so a clone that stopped halfway
     # can't pass for the overlay on a retry.
     if [[ -e $GI_TARGET$dir.new ]]; then run_cmd rm -rf -- "$GI_TARGET$dir.new"; fi

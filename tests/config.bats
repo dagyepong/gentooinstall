@@ -47,6 +47,7 @@ invalid() { ! cfg_validate "$1" "$2" > /dev/null; }
   [ "${CFG[bluetooth]}" = yes ]
   [ "${CFG[wifi_ssid]}" = home ]
   [ "${CFG[cflags]}" = "-march=native -O2 -pipe" ]
+  [ "${CFG[media_keys]}" = no ]
 }
 
 @test "defaults on a desktop machine without bluetooth" {
@@ -212,6 +213,8 @@ EOF
   cfg_defaults_apply
   for k in "${GI_CFG_KEYS[@]}"; do cfg_validate "$k" "${CFG[$k]}"; done
   invalid nonsense x
+  valid media_keys yes
+  invalid media_keys maybe
 }
 
 @test "cfg_set validates and respects locks" {

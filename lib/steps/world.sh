@@ -6,9 +6,18 @@ step_define world "Install packages" \
   "https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Optional:_Updating_the_@world_set"
 
 step_world() {
+  local list
+  local -a atoms=()
   # A resume with a new --config may have changed the answers since the compile preview.
   portage_refresh
-  world_with_args emerge_run --keep-going --verbose
+  # --oneshot records nothing, so a failed run leaves nothing in the world file that a resume
+  # with changed answers would keep installed.
+  world_with_args emerge_run --oneshot --keep-going --verbose || return
+  list=$(world_packages) || return
+  read -ra atoms <<< "${list//$'\n'/ }"
+  # Records them without --update, which would also record each older installed slot of a named
+  # package, like the old kernel after a sync and a retry, so depclean would never remove it.
+  run_chroot emerge --noreplace "${atoms[@]}"
 }
 
 # Every step's package list plus the user's extra packages, deduplicated, in step order.

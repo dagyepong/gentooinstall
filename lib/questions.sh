@@ -228,6 +228,9 @@ _q_keys() { # SECTION: prints KEY<TAB>LABEL<TAB>HELP for each setting it shows
         _q_row browser Browser "The web browser to install"
         _q_row fonts_cjk "CJK fonts" "Fonts for Chinese, Japanese and Korean"
       fi
+      if [[ -n $(_q_media_keys) ]]; then
+        _q_row media_keys "Media keys" "Programs the default config's media keys call"
+      fi
       ;;
     Network)
       _q_row network "Network manager" "What connects the new system to the network"
@@ -345,6 +348,16 @@ _q_login_screen() {
     plasma) echo SDDM ;;
     gnome) echo GDM ;;
     xfce | budgie | cinnamon) echo LightDM ;;
+  esac
+}
+
+# What media_keys=yes installs, as part H's step does: the programs the window manager's shipped
+# config calls that nothing else installs. Nothing for the others; the full desktops have their own.
+_q_media_keys() {
+  case ${CFG[desktop]} in
+    sway) echo "Sway's default config calls brightnessctl, playerctl and grim for the brightness, player and Print keys. Installing them builds 3 small packages from source." ;;
+    hyprland) echo "Hyprland's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source." ;;
+    niri) echo "Niri's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source." ;;
   esac
 }
 
@@ -537,6 +550,16 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
         no "Skip them." "Latin, Greek and Cyrillic text still shows fine." \
         yes "Add Chinese, Japanese and Korean fonts." "media-fonts/noto-cjk, a large download."
       ;;
+    media_keys)
+      local help="Builds them from source." vol="The volume keys work either way."
+      # Niri comes from GURU already; for sway and Hyprland brightnessctl adds it.
+      if [[ ${CFG[desktop]} != niri ]]; then help="brightnessctl is from GURU, a user overlay that Gentoo doesn't review."; fi
+      # Their pactl and wpctl need the sound server.
+      if [[ ${CFG[audio]} != pipewire ]]; then vol="With Audio set to none, the volume keys do nothing either way."; fi
+      _q_radio media_keys "Media keys" "$(_q_media_keys) $vol" no \
+        no "Leave them out." "Those keys do nothing until you install the programs." \
+        yes "Install them." "$help"
+      ;;
     network)
       local -a nd=()
       if [[ ${CFG[init]} == systemd ]]; then nd=(networkd "systemd-networkd." "Wired DHCP only, built into systemd."); fi
@@ -607,7 +630,8 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
         no "Regular user." "Can't run commands as root."
       ;;
     user.*.shell)
-      _q_radio "$key" "Shell" "The login shell for $u." bash \
+      # dialog shows an item's help on one line, cut at the screen width; the question text wraps.
+      _q_radio "$key" "Shell" "The login shell for $u. Fish, as a login shell, doesn't read /etc/profile.env, so it misses system variables set through /etc/env.d (Gentoo bug 545830); the installer adds only the keyboard layout ones." bash \
         bash "Bash." "The standard shell." \
         zsh "Zsh." "Bash-like, with more completion and prompt features." \
         fish "Fish. Friendly, not Bash-compatible." "No binary package: builds from source with a Rust toolchain, about 200 MB."
