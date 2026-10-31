@@ -1,0 +1,165 @@
+
+Performing Global Updates
+(Could take a couple of minutes if you have a lot of binary packages.)
+  .='update pass'  *='binary update'  #='/var/db update'  @='/var/db move'
+  s='/var/db SLOT move'  %='binary move'  S='binary SLOT move'
+  p='update /etc/portage/package.*'
+
+
+Initializing /etc/portage/gnupg
+gpg: Generating Portage local OpenPGP trust key
+gpg: done
+
+pub  rsa4096/A13D0EF1914E7A72
+     created: 2018-05-28  expires: 2028-07-01  usage: C   
+     trust: unknown       validity: unknown
+      EF9538C9E8E64311A52CDEDFA13D0EF1914E7A72
+
+     Gentoo repository mirrors (automated git signing key) <repomirrorci@gentoo.org>
+
+This key is due to expire on 2028-07-01.
+
+The signature will be marked as non-exportable.
+
+gpg: "F748E9B3C47E393CC24C8FAF7C2AC09CD98F2EDF" is not the primary fingerprint
+
+pub  rsa4096/DB6B8C1F96D8BF6D
+     created: 2011-11-25  expires: 2028-07-01  usage: C   
+     trust: unknown       validity: unknown
+      DCD05B71EAB94199527F44ACDB6B8C1F96D8BF6D
+
+     Gentoo ebuild repository signing key (Automated Signing Key) <infrastructure@gentoo.org>
+     Gentoo Portage Snapshot Signing Key (Automated Signing Key)
+
+This key is due to expire on 2028-07-01.
+
+The signature will be marked as non-exportable.
+
+gpg: "E1D6ABB63BFCFB4BA02FDF1CEC590EEAC9189250" is not the primary fingerprint
+
+pub  dsa1024/9E6438C817072058
+     created: 2004-07-20  expires: 2028-07-01  usage: SC  
+     trust: unknown       validity: unknown
+      D99EAC7379A850BCE47DA5F29E6438C817072058
+
+     Gentoo Linux Release Engineering (Gentoo Linux Release Signing Key) <releng@gentoo.org>
+
+This key is due to expire on 2028-07-01.
+
+The signature will be marked as non-exportable.
+
+gpg: "C7FAC844D6122F080E1821A10403710E1415B4ED" is not the primary fingerprint
+
+pub  rsa4096/BB572E0E2D182910
+     created: 2009-08-25  expires: 2028-07-01  usage: SC  
+     trust: unknown       validity: unknown
+      13EBBDBEDE7A12775DFDB1BABB572E0E2D182910
+
+     Gentoo Linux Release Engineering (Automated Weekly Release Key) <releng@gentoo.org>
+
+This key is due to expire on 2028-07-01.
+
+The signature will be marked as non-exportable.
+
+gpg: "534E4209AB49EEE1C19D96162C44695DB9F6043D" is not the primary fingerprint
+gpg: next trustdb check due at 2028-07-01
+
+ * IMPORTANT: 19 news items need reading for repository 'gentoo'.
+ * Use eselect news read to view new items.
+
+Calculating dependencies ... done!
+Dependency resolution took 0.29 s (backtrack: 0/20).
+
+[ebuild  N     ] app-misc/hello-2.12.3  USE="nls" 
+[binary  N g   ] dev-libs/oniguruma-6.9.10-6  USE="-crnl-as-line-terminator -static-libs" ABI_X86="(64) -32 (-x32)" 
+[binary  N g   ] acct-group/utmp-0-r3-2 
+[binary  N g   ] app-misc/screen-4.9.1-r2-4  USE="pam -debug -multiuser -nethack (-selinux)" 
+[ebuild  N     ] app-misc/jq-1.8.2  USE="oniguruma -static-libs -test" 
+>>> Verifying ebuild manifests
+>>> Running pre-merge checks for acct-group/utmp-0-r3
+--2026-10-30 05:51:14--  https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64/acct-group/utmp/utmp-0-r3-2.gpkg.tar
+Resolving distfiles.gentoo.org... 84.17.59.9, 212.102.55.183, 2a02:6ea0:d500::13, ...
+Connecting to distfiles.gentoo.org|84.17.59.9|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 20480 (20K) [application/x-tar]
+Saving to: ‘/var/cache/binhost/gentoo/acct-group/utmp/utmp-0-r3-2.gpkg.tar.partial’
+
+     0K .......... ..........                                 100% 2.72M=0.007s
+
+2026-10-30 05:51:14 (2.72 MB/s) - ‘/var/cache/binhost/gentoo/acct-group/utmp/utmp-0-r3-2.gpkg.tar.partial’ saved [20480/20480]
+
+Unable to unshare: EPERM (for FEATURES="pid-sandbox")
+Unable to unshare: EPERM (for FEATURES="ipc-sandbox network-sandbox pid-sandbox")
+>>> Jobs: 0 of 5 complete, 1 running                                    Load avg: 0.79, 0.45, 0.34
+>>> Emerging (1 of 5) app-misc/hello-2.12.3::gentoo
+>>> Jobs: 0 of 5 complete, 1 running                                    Load avg: 0.79, 0.45, 0.34
+>>> Jobs: 0 of 5 complete, 2 running                                    Load avg: 0.79, 0.45, 0.34
+>>> Emerging binary (2 of 5) dev-libs/oniguruma-6.9.10::gentoo
+>>> Jobs: 0 of 5 complete, 2 running                                    Load avg: 0.79, 0.45, 0.34
+>>> Jobs: 0 of 5 complete, 1 running                                    Load avg: 0.97, 0.50, 0.35
+>>> Jobs: 0 of 5 complete, 2 running, 1 merge wait                      Load avg: 0.97, 0.50, 0.35
+>>> Emerging binary (3 of 5) acct-group/utmp-0-r3::gentoo
+>>> Jobs: 0 of 5 complete, 2 running, 1 merge wait                      Load avg: 0.97, 0.50, 0.35
+>>> Jobs: 0 of 5 complete, 1 running, 1 merge wait                      Load avg: 0.97, 0.50, 0.35
+>>> Jobs: 0 of 5 complete, 2 merge wait                                 Load avg: 0.97, 0.51, 0.36
+>>> Installing (2 of 5) dev-libs/oniguruma-6.9.10::gentoo
+>>> Jobs: 0 of 5 complete, 3 merge wait                                 Load avg: 0.97, 0.51, 0.36
+>>> Completed (2 of 5) dev-libs/oniguruma-6.9.10::gentoo
+>>> Jobs: 0 of 5 complete                                               Load avg: 0.97, 0.51, 0.36
+>>> Installing (3 of 5) acct-group/utmp-0-r3::gentoo
+>>> Jobs: 0 of 5 complete                                               Load avg: 0.97, 0.51, 0.36
+>>> Jobs: 1 of 5 complete                                               Load avg: 0.97, 0.51, 0.36
+>>> Completed (3 of 5) acct-group/utmp-0-r3::gentoo
+>>> Jobs: 1 of 5 complete                                               Load avg: 0.97, 0.51, 0.36
+>>> Jobs: 2 of 5 complete                                               Load avg: 0.97, 0.51, 0.36
+>>> Installing (1 of 5) app-misc/hello-2.12.3::gentoo
+>>> Jobs: 2 of 5 complete                                               Load avg: 0.97, 0.51, 0.36
+>>> Recording app-misc/hello in "world" favorites file...
+>>> Jobs: 2 of 5 complete                                               Load avg: 0.97, 0.51, 0.36
+>>> Completed (1 of 5) app-misc/hello-2.12.3::gentoo
+>>> Jobs: 2 of 5 complete                                               Load avg: 0.97, 0.51, 0.36
+>>> Jobs: 3 of 5 complete                                               Load avg: 0.97, 0.51, 0.36
+>>> Jobs: 3 of 5 complete, 1 running                                    Load avg: 0.97, 0.51, 0.36
+>>> Emerging binary (4 of 5) app-misc/screen-4.9.1-r2::gentoo
+>>> Jobs: 3 of 5 complete, 1 running                                    Load avg: 0.97, 0.51, 0.36
+>>> Jobs: 3 of 5 complete, 2 running                                    Load avg: 0.97, 0.51, 0.36
+>>> Emerging (5 of 5) app-misc/jq-1.8.2::gentoo
+>>> Jobs: 3 of 5 complete, 2 running                                    Load avg: 0.97, 0.51, 0.36
+>>> Jobs: 3 of 5 complete, 1 running                                    Load avg: 0.97, 0.51, 0.36
+>>> Jobs: 3 of 5 complete, 1 merge wait                                 Load avg: 0.98, 0.53, 0.37
+>>> Installing (4 of 5) app-misc/screen-4.9.1-r2::gentoo
+>>> Jobs: 3 of 5 complete, 2 merge wait                                 Load avg: 0.98, 0.53, 0.37
+>>> Recording app-misc/screen in "world" favorites file...
+>>> Jobs: 3 of 5 complete                                               Load avg: 0.98, 0.53, 0.37
+>>> Completed (4 of 5) app-misc/screen-4.9.1-r2::gentoo
+>>> Jobs: 3 of 5 complete                                               Load avg: 0.98, 0.53, 0.37
+>>> Installing (5 of 5) app-misc/jq-1.8.2::gentoo
+>>> Jobs: 3 of 5 complete                                               Load avg: 0.98, 0.53, 0.37
+>>> Jobs: 4 of 5 complete                                               Load avg: 0.98, 0.53, 0.37
+>>> Recording app-misc/jq in "world" favorites file...
+>>> Jobs: 4 of 5 complete                                               Load avg: 0.98, 0.54, 0.37
+>>> Completed (5 of 5) app-misc/jq-1.8.2::gentoo
+>>> Jobs: 4 of 5 complete                                               Load avg: 0.98, 0.54, 0.37
+>>> Jobs: 5 of 5 complete                                               Load avg: 0.98, 0.54, 0.37
+
+
+ * Messages for package acct-group/utmp-0-r3:
+
+ * Group utmp already exists
+
+ * Messages for package app-misc/screen-4.9.1-r2:
+
+ * Some dangerous key bindings have been removed or changed to more safe values.
+ * We enable some xterm hacks in our default screenrc, which might break some
+ * applications. Please check /etc/screenrc for information on these changes.
+ * This revision changes the screen socket location to /tmp/screen
+>>> Auto-cleaning packages...
+
+>>> No outdated packages were found on your system.
+
+ * Regenerating GNU info directory index...
+ * Processed 106 info files.
+
+ * IMPORTANT: 19 news items need reading for repository 'gentoo'.
+ * Use eselect news read to view new items.
+

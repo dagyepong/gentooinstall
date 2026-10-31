@@ -1,0 +1,101 @@
+[gentoo-x86-64-v3] Local copy of remote index is within TTL and will be used.
+[gentoo] Local copy of remote index is within TTL and will be used.
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies ... done!
+Dependency resolution took 2.61 s (backtrack: 0/20).
+
+[binary    gU  ] net-dns/c-ares-1.34.9-1:0/2::gentoo [1.34.8:0/2::gentoo] USE="-static-libs -test -verify-sig" ABI_X86="(64) -32 (-x32)" 240 KiB
+[binary  N g   ] net-libs/nghttp2-1.70.0-3:0/1.14::gentoo  USE="-debug -hpack-tools -systemd -test -utils -verify-sig -xml" ABI_X86="(64) -32 (-x32)" 190 KiB
+[binary  N g   ] net-libs/nghttp3-1.18.0-1::gentoo  USE="-verify-sig" ABI_X86="(64) -32 (-x32)" 110 KiB
+[binary  N g   ] net-libs/ngtcp2-1.25.0-1::gentoo  USE="openssl ssl -gnutls -verify-sig" ABI_X86="(64) -32 (-x32)" 230 KiB
+[binary   Rg   ] net-misc/iputils-20250605-r4-1::gentoo  USE="arping caps filecaps* nls suid -clockdiff -doc -idn -test -tracepath -verify-sig" 140 KiB
+[binary  N g   ] app-arch/lz4-1.10.0-r1-6:0/1.10.0-meson::gentoo  USE="-static-libs -test" ABI_X86="(64) -32 (-x32)" 180 KiB
+[binary   Rg   ] sys-devel/gettext-0.23.2-7::gentoo  USE="acl cxx ncurses nls openmp* xattr -doc -emacs -git -java -static-libs -verify-sig" ABI_X86="(64) -32 (-x32)" 2690 KiB
+[binary   Rg   ] net-misc/curl-8.23.0-1::gentoo  USE="adns alt-svc ftp hsts http2* http3* httpsrr imap openssl pop3 psl quic* smtp ssl tftp websockets -brotli -debug (-ech) -gnutls -gopher -idn -kerberos -ldap -mbedtls (-rustls) -sasl-scram -ssh -static-libs -telnet -test -verify-sig -zstd" ABI_X86="(64) -32 (-x32)" CURL_SSL="openssl -gnutls -mbedtls (-rustls)" 1380 KiB
+[binary   Rg   ] app-crypt/libb2-0.98.1-r3-14::gentoo  USE="openmp* -native-cflags -static-libs" ABI_X86="(64) -32 (-x32)" 50 KiB
+[binary    gU  ] app-crypt/gnupg-2.5.24-r2-3::gentoo [2.5.24-r1::gentoo] USE="alternatives bzip2 nls readline smartcard ssl tofu -doc -ldap (-selinux) -test -tools -tpm -usb -user-socket (-verify-sig) -wks-server" 3190 KiB
+[binary   Rg   ] app-portage/portage-utils-0.97.1-1::gentoo  USE="openmp* qmanifest -static" 200 KiB
+[binary  N g   ] acct-group/adm-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/wheel-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/utmp-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/clock-0-2::gentoo  20 KiB
+[binary  N g   ] acct-group/users-0-r2-2::gentoo  20 KiB
+[binary  N g   ] acct-group/systemd-journal-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/messagebus-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/systemd-timesync-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/systemd-resolve-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/systemd-oom-0-r2-2::gentoo  20 KiB
+[binary  N g   ] acct-group/systemd-network-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/systemd-coredump-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/systemd-journal-remote-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-group/nobody-0-r2-2::gentoo  20 KiB
+[binary  N g   ] acct-user/systemd-journal-remote-0-r3-2::gentoo  0 KiB
+[binary  N g   ] acct-user/systemd-coredump-0-r3-2::gentoo  0 KiB
+[binary  N g   ] acct-user/systemd-network-0-r3-2::gentoo  0 KiB
+[binary  N g   ] acct-user/systemd-oom-0-r2-2::gentoo  0 KiB
+[binary  N g   ] acct-user/systemd-resolve-0-r3-2::gentoo  0 KiB
+[binary  N g   ] acct-user/systemd-timesync-0-r3-2::gentoo  0 KiB
+[binary  N g   ] acct-user/messagebus-0-r3-2::gentoo  0 KiB
+[binary  N g   ] acct-user/nobody-0-r2-3::gentoo  20 KiB
+[binary  NSg   ] app-text/docbook-xml-dtd-4.4-r3-1:4.4::gentoo [4.1.2-r7:4.1.2::gentoo, 4.2-r3:4.2::gentoo, 4.5-r2:4.5::gentoo] 80 KiB
+[binary  N g   ] app-text/xmlto-0.0.28-r11-23::gentoo  USE="-latex -text" 60 KiB
+[binary    gU  ] dev-lang/python-3.14.10-1:3.14::gentoo [3.14.7:3.14::gentoo] USE="ensurepip gdbm ncurses readline sqlite ssl -bluetooth -build -debug -examples (-jit) -libedit -pgo -tail-call-interp -test -tk -valgrind -verify-sig" LLVM_SLOT="19" 9380 KiB
+[binary  N g   ] dev-python/lxml-6.1.3-1::gentoo  USE="threads -debug -doc -examples -test" PYTHON_TARGETS="python3_14 -python3_12 -python3_13 (-python3_14t) (-python3_15) (-python3_15t)" 1510 KiB
+[ebuild  N     ] sys-apps/systemd-261.2:0/2::gentoo  USE="acl dns-over-tls gcrypt kernel-install kmod libarchive lz4 openssl pam pcre resolvconf seccomp zstd -apparmor -audit -boot -bpf -cryptsetup -curl -elfutils -fido2 -gnutls -homed -idn -imds -importd -lzma -passwdqc -pkcs11 -policykit -pwquality -qrcode -remote -secureboot (-selinux) -sysv-utils -test -tpm -ukify -vanilla -xkb" ABI_X86="(64) -32 (-x32)" PYTHON_SINGLE_TARGET="python3_14 -python3_12 -python3_13" 18024 KiB
+[ebuild  N     ] sys-apps/systemd-initctl-2::gentoo  10 KiB
+[binary  N g   ] sys-apps/gentoo-systemd-integration-9-r2-1::gentoo  30 KiB
+[ebuild  N     ] sys-apps/dbus-1.16.2::gentoo  USE="systemd -X -debug -doc -elogind (-selinux) -static-libs -test -valgrind" ABI_X86="(64) -32 (-x32)" 1090 KiB
+[blocks B      ] sys-apps/gentoo-systemd-integration ("sys-apps/gentoo-systemd-integration" is soft blocking sys-apps/systemd-utils-260.1-r1)
+[blocks B      ] sys-apps/systemd ("sys-apps/systemd" is soft blocking sys-apps/systemd-utils-260.1-r1)
+
+Total: 41 packages (3 upgrades, 32 new, 1 in new slot, 5 reinstalls, 38 binaries), Size of downloads: 39084 KiB
+Conflict: 2 blocks (2 unsatisfied)
+
+ * Error: The above package list contains packages which cannot be
+ * installed at the same time on the same system.
+
+  (sys-apps/systemd-utils-260.1-r1-3:0/0::gentoo, installed) pulled in by
+    sys-apps/systemd-utils[udev] required by (virtual/udev-217-r7-1:0/0::gentoo, installed) USE="-systemd" ABI_X86="(64)"
+    sys-apps/systemd-utils[tmpfiles] required by (virtual/tmpfiles-0-r7-1:0/0::gentoo, installed) USE="-systemd" ABI_X86="(64)"
+
+  (sys-apps/systemd-261.2:0/2::gentoo, ebuild scheduled for merge) pulled in by
+    sys-apps/systemd:= required by (sys-apps/dbus-1.16.2:0/0::gentoo, ebuild scheduled for merge) USE="systemd -X -debug -doc -elogind (-selinux) -static-libs -test -valgrind" ABI_X86="(64) -32 (-x32)"
+    >=sys-apps/systemd-207 required by (sys-apps/gentoo-systemd-integration-9-r2-1:0/0::gentoo, binary scheduled for merge) USE="" ABI_X86="(64)"
+    sys-apps/systemd:0= required by (sys-apps/systemd-initctl-2:0/0::gentoo, ebuild scheduled for merge) USE="" ABI_X86="(64)"
+    sys-apps/systemd
+
+
+For more information about Blocked Packages, please refer to the following
+section of the Gentoo Linux x86 Handbook (architecture is irrelevant):
+
+https://wiki.gentoo.org/wiki/Handbook:X86/Working/Portage#Blocked_packages
+
+
+!!! The following binary packages have been ignored due to non matching USE:
+
+    =sys-apps/systemd-261.2 policykit selinux sysv-utils
+    =sys-apps/systemd-261.2 policykit python_single_target_python3_13 -python_single_target_python3_14 sysv-utils
+    =sys-apps/systemd-261.2 policykit sysv-utils
+    =sys-apps/dbus-1.16.2 X selinux systemd
+    =sys-apps/dbus-1.16.2 X systemd
+
+NOTE: The --binpkg-respect-use=n option will prevent emerge
+      from ignoring these binary packages if possible.
+      Using --binpkg-respect-use=y will silence this warning.
+
+The following USE changes are necessary to proceed:
+ (see "package.use" in the portage(5) man page for more details)
+# required by sys-apps/systemd-261.2::gentoo
+# required by sys-apps/systemd-initctl-2::gentoo
+>=sys-apps/dbus-1.16.2 systemd
+
+ * In order to avoid wasting time, backtracking has terminated early
+ * due to the above autounmask change(s). The --autounmask-backtrack=y
+ * option can be used to force further backtracking, but there is no
+ * guarantee that it will produce a solution.
+
+ * IMPORTANT: 19 news items need reading for repository 'gentoo'.
+ * Use eselect news read to view new items.
+

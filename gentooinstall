@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# gentooinstall: guided installer for Gentoo Linux, run from the Gentoo minimal ISO.
+
+GI_HOME=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd -P)
+
+gi_usage() {
+  cat << 'EOF'
+Usage: gentooinstall [options]
+
+Installs Gentoo Linux from the Gentoo minimal ISO, following the Handbook.
+
+Options:
+  --config FILE    Read answers from FILE (key=value lines).
+  --secrets FILE   Read passwords from FILE (owned by root, mode 600).
+  --resume         Continue an install that stopped.
+  --dry-run        Ask the questions, then print every command instead of running it.
+  --explain        Explain each step and show each command as it runs.
+  --yes            Don't ask; take every answer from --config. Needs --config.
+  --no-tui         Use plain text prompts instead of dialog.
+  --log FILE       Write the log to FILE instead of /tmp/gentooinstall/install.log.
+  --help           Show this help.
+  --version        Show the version.
+
+Exit status: 0 done, 1 failed, 2 bad usage or config, 130 stopped by the user.
+EOF
+}
+
+gi_usage_error() {
+  printf 'gentooinstall: %s\nTry gentooinstall --help.\n' "$1" >&2
+  exit 2
+}
+
+gi_source_libs() {
+  local f
+  for f in "$GI_HOME"/lib/*.sh "$GI_HOME"/lib/steps/*.sh; do
+    # shellcheck source=/dev/null  # the file list is only known at run time
+    if [[ -f $f ]]; then source "$f"; fi
+  done
+}
+
+# Only the first line of the command: a failed step's whole subshell would fill the error menu.
+gi_on_err() { log ERROR "command failed with exit status $1 at $3: ${2%%$'\n'*}"; }
+
+gi_on_int() {
+  printf '\n' >&2
+  if ui_yesno --defaultno "Stop the installer?" \
+    "Stop now? Finished steps are kept, and gentooinstall --resume continues with the step that was running."; then
+    log INFO "stopped by the user"
+    exit 130
+  fi
+  log INFO "Ctrl+C: the user chose to go on"
+  # shellcheck disable=SC2034  # read by steps_run, so the interrupted step gets the error menu
+  GI_INTERRUPTED=1
+}
+
+gi_on_term() {
+  log ERROR "terminated"
+  exit 1
+}
+
+gi_on_exit() {
+  local rc=$?
+  log INFO "exit status $rc"
+  if ((rc == 0)); then return; fi
+  if ((rc == 130)); then printf '\nStopped.' >&2; else printf '\ngentooinstall failed (exit status %s).' "$rc" >&2; fi
+  printf ' Log: %s\n' "$GI_LOG" >&2
+  if [[ $(state_get state.relocated) == yes ]]; then
+    printf 'To continue: %s --resume\n' "$GI_HOME/gentooinstall" >&2
+  fi
+}
+
+gi_replay_header() {
+  printf '#!/bin/bash\n# Commands run by gentooinstall %s, started %(%F %T)T.\n# Secrets are never recorded. Read it top to bottom to follow the install by hand.\n' \
+    "$GI_VERSION" -1 > "$GI_RUN_DIR/replay.sh"
+}
+
+gi_resume() { # USER_CONFIG PSK_FROM_SECRETS
+  local dir=$GI_TARGET/var/lib/gentooinstall id out k step keymap=${CFG[keymap]:-} failed=0 replan=0
+  local -a pending=()
+  local -A saved=()
+  disk_resume_mount
+  [[ -f $dir/state && -f $dir/config ]] || die "Found no install to resume: $dir has no state or config. Start over without --resume." 1
+  cp -- "$dir/state" "$GI_RUN_DIR/state"
+  CFG=()
+  cfg_load "$dir/config" || exit 2
+  cfg_lock disk filesystem encryption swap init
+  cfg_defaults_apply
+  for k in "${!CFG[@]}"; do saved[$k]=${CFG[$k]}; done
+  if [[ -n $1 ]]; then cfg_load "$1" || exit 2; fi
+  cfg_defaults_apply
+  # An answer may change only while the first step that acts on it is pending. World installs
+  # every package and is the last to rewrite Portage's files, so it covers most keys.
+  for k in "${!CFG[@]}"; do
+    [[ ${CFG[$k]} != "${saved[$k]-}" ]] || continue
+    case $k in
+      explain | format) continue ;;
+      keymap | timezone | lang) step='locale' ;;
+      hostname | root) step=system ;;
+      keep_wifi | wifi_ssid) step=network ;;
+      user.*.admin) step=users ;;
+      *) step=world ;;
+    esac
+    if state_step_is_done "$step"; then
+      error "$k can't change on --resume: the step \"${GI_STEP_TITLE[$step]}\" already used it. Leave $k out of --config, or start over without --resume."
+      failed=1
+    elif [[ $step == world ]]; then
+      replan=1
+    fi
+  done
+  ((!failed)) || exit 2
+  if [[ ${CFG[keymap]} != "${saved[keymap]}" && ${CFG[encryption]} == luks2 ]]; then
+    warn "The disk passphrase was set with the ${saved[keymap]} layout. If that layout didn't match your keyboard, the passphrase won't unlock the disk at boot with ${CFG[keymap]}."
+  fi
+  # The compile preview showed a plan for the old answers.
+  if ((replan)) && state_step_is_done preview; then
+    state_set step.preview ''
+    info "The answers changed since the compile preview, so it runs again."
+  fi
+  # The layout picked at start unlocked the disk; passwords asked from here on are for the new system.
+  if [[ ${CFG[keymap]} != "$keymap" ]]; then
+    run_cmd loadkeys "${CFG[keymap]}" || die "Couldn't load the keymap ${CFG[keymap]}. Give another one with keymap= in a --config file." 2
+    info "Switched to the new system's keyboard layout, ${CFG[keymap]}."
+  fi
+  # Preflight kept the key of the network the live system is on now, which may not be the saved one.
+  if [[ -z $2 && ${CFG[wifi_ssid]} != "${HW[wifi_ssid]:-}" ]]; then unset 'SECRET[wifi_psk]'; fi
+  if ! out=$(cfg_check_rules); then
+    printf '%s\n' "$out" >&2
+    exit 2
+  fi
+  if [[ -n $out ]]; then printf '%s\n' "$out" >&2; fi
+  for id in "${GI_STEPS[@]}"; do
+    state_step_is_done "$id" || pending+=("$id")
+  done
+  # The questions warn about these on a fresh run, and steps_run about the ones it asks for.
+  while IFS= read -r id; do
+    if [[ $id != wifi_psk && -n ${SECRET[$id]+x} ]] && ((${#SECRET[$id]} < 16)); then
+      warn "$id is shorter than the 16 characters the Handbook suggests."
+    fi
+  done < <(SECRET=() && cfg_secrets_missing "${pending[@]}")
+  # steps_run asks for the secrets the pending steps still need.
+  log INFO "resuming; pending steps: ${pending[*]}"
+}
+
+main() {
+  set +x # xtrace would print every password that passes through a variable
+  set -Eeuo pipefail
+  shopt -s inherit_errexit
+  gi_source_libs
+  local config='' secrets='' log_file='' args psk_given
+  args=$(_q "$@")
+  GI_DRY_RUN=0 GI_EXPLAIN=0 GI_YES=0 GI_RESUME=0 GI_UI=''
+  while (($#)); do
+    case $1 in
+      --config | --secrets | --log)
+        (($# >= 2)) || gi_usage_error "$1 needs a file name"
+        case $1 in
+          --config) config=$2 ;;
+          --secrets) secrets=$2 ;;
+          --log) log_file=$2 ;;
+        esac
+        shift
+        ;;
+      --resume) GI_RESUME=1 ;;
+      --dry-run) GI_DRY_RUN=1 ;;
+      --explain) GI_EXPLAIN=1 ;;
+      --yes) GI_YES=1 ;;
+      --no-tui)
+        # shellcheck disable=SC2034  # ui_init keeps a preset plain
+        GI_UI=plain
+        ;;
+      --help | -h)
+        gi_usage
+        exit 0
+        ;;
+      --version)
+        printf 'gentooinstall %s\n' "$GI_VERSION"
+        exit 0
+        ;;
+      *) gi_usage_error "unknown option: $1" ;;
+    esac
+    shift
+  done
+  if ((GI_YES)) && [[ -z $config ]]; then gi_usage_error "--yes needs --config"; fi
+  if ((GI_RESUME && GI_DRY_RUN)); then gi_usage_error "--resume and --dry-run can't be combined"; fi
+  if ((EUID != 0 && !GI_TEST)); then
+    printf 'gentooinstall must run as root.\n' >&2
+    exit 1
+  fi
+
+  mkdir -p -- "$GI_RUN_DIR"
+  # Checked before chmod, which would otherwise follow a planted symlink.
+  if [[ ! -O $GI_RUN_DIR || -L $GI_RUN_DIR ]]; then
+    printf '%s must be a directory owned by the user running gentooinstall.\n' "$GI_RUN_DIR" >&2
+    exit 1
+  fi
+  chmod 0700 -- "$GI_RUN_DIR"
+  GI_LOG=${log_file:-$GI_RUN_DIR/install.log}
+  : >> "$GI_LOG"
+  # Not a device: --log /dev/null would otherwise lock every other user out of it.
+  if [[ -f $GI_LOG ]]; then chmod 0600 -- "$GI_LOG"; fi
+  if ((!GI_RESUME)); then
+    # Build logs of an earlier attempt would otherwise be copied into the new system as this one's.
+    rm -rf -- "$GI_RUN_DIR/state" "$GI_RUN_DIR/config" "$GI_RUN_DIR/last_failure" "$GI_RUN_DIR/build-logs"
+    gi_replay_header
+  fi
+  log INFO "gentooinstall $GI_VERSION started with arguments: $args"
+  trap 'gi_on_err $? "$BASH_COMMAND" "${BASH_SOURCE[0]##*/}:$LINENO"' ERR
+  trap gi_on_int INT
+  trap gi_on_term TERM
+  trap gi_on_exit EXIT
+
+  ui_init
+  # The config loads first so questions_keymap can use its keymap; defaults fill the rest later.
+  if [[ -n $config ]]; then cfg_load "$config" || exit 2; fi
+  if [[ -n $secrets ]]; then cfg_load_secrets "$secrets" || exit 2; fi
+  psk_given=${SECRET[wifi_psk]+x}
+  if ((GI_EXPLAIN)); then cfg_set explain yes; fi
+  questions_keymap
+  preflight_run
+  cfg_defaults_apply
+  if ((GI_RESUME)); then gi_resume "$config" "$psk_given"; else questions_run; fi
+  if [[ ${CFG[explain]} == yes ]]; then GI_EXPLAIN=1; fi
+  steps_run
+  # finish_menu is in lib/steps/finish.sh, which the entry point's tests leave out.
+  if ((!GI_DRY_RUN)) && declare -F finish_menu > /dev/null; then finish_menu; fi
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then main "$@"; fi

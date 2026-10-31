@@ -1,0 +1,25 @@
+[gentoo-x86-64-v3] Local copy of remote index is within TTL and will be used.
+[gentoo] Local copy of remote index is within TTL and will be used.
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies ...
+
+!!! Problem resolving dependencies for app-editors/vim
+ done!
+Dependency resolution took 0.36 s (backtrack: 0/20).
+
+
+!!! The ebuild selected to satisfy "app-editors/vim" has unmet requirements.
+- app-editors/vim-9.2.1125::gentoo USE="acl crypt nls python -X -cscope -debug -gpm -lua -minimal -pango -perl -racket -ruby (-selinux) -sound -tcl -terminal -vim-pager -wayland" ABI_X86="(64)" LUA_SINGLE_TARGET="lua5-1 -lua5-3 -lua5-4 -luajit" PERL_FEATURES="(-debug) -ithreads -quadmath" PYTHON_SINGLE_TARGET="python3_12 python3_13 python3_14"
+
+  The following REQUIRED_USE flag constraints are unsatisfied:
+    python? ( exactly-one-of ( python_single_target_python3_12 python_single_target_python3_13 python_single_target_python3_14 ) )
+
+  The above constraints are a subset of the following complete expression:
+    lua? ( exactly-one-of ( lua_single_target_luajit lua_single_target_lua5-1 lua_single_target_lua5-3 lua_single_target_lua5-4 ) ) python? ( exactly-one-of ( python_single_target_python3_12 python_single_target_python3_13 python_single_target_python3_14 ) ) pango? ( !minimal ) vim-pager? ( !minimal )
+
+
+ * IMPORTANT: 19 news items need reading for repository 'gentoo'.
+ * Use eselect news read to view new items.
+

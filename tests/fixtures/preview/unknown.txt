@@ -1,0 +1,17 @@
+[gentoo-x86-64-v3] Local copy of remote index is within TTL and will be used.
+[gentoo] Local copy of remote index is within TTL and will be used.
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies ... done!
+Dependency resolution took 0.33 s (backtrack: 0/20).
+
+
+emerge: there are no ebuilds to satisfy "app-misc/doesnotexist".
+
+emerge: searching for similar names...
+emerge: Maybe you meant any of these: app-misc/evtest, app-misc/note, app-misc/gnote?
+
+ * IMPORTANT: 19 news items need reading for repository 'gentoo'.
+ * Use eselect news read to view new items.
+

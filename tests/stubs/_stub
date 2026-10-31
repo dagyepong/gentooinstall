@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Test stub: records its name and arguments, prints canned output and exits with a chosen status.
+name=${0##*/}
+{
+  printf '%s' "$name"
+  for arg; do printf ' %q' "$arg"; done
+  printf '\n'
+} >> "${STUB_LOG:-/dev/null}"
+if [[ -n ${STUB_STDIN_DIR:-} ]]; then cat >> "$STUB_STDIN_DIR/$name"; fi
+if [[ -n ${STUB_OUT_DIR:-} && -f $STUB_OUT_DIR/$name ]]; then cat -- "$STUB_OUT_DIR/$name"; fi
+rc_var=STUB_RC_${name//[-.]/_}
+exit "${!rc_var:-0}"

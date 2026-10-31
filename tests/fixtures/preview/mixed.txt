@@ -1,0 +1,232 @@
+
+Performing Global Updates
+(Could take a couple of minutes if you have a lot of binary packages.)
+  .='update pass'  *='binary update'  #='/var/db update'  @='/var/db move'
+  s='/var/db SLOT move'  %='binary move'  S='binary SLOT move'
+  p='update /etc/portage/package.*'
+/var/db/repos/gentoo/profiles/updates/1Q-2020.........
+/var/db/repos/gentoo/profiles/updates/1Q-2021.......
+/var/db/repos/gentoo/profiles/updates/1Q-2023.......................
+/var/db/repos/gentoo/profiles/updates/1Q-2024........................................................................................
+/var/db/repos/gentoo/profiles/updates/1Q-2025...........................
+/var/db/repos/gentoo/profiles/updates/1Q-2026...
+/var/db/repos/gentoo/profiles/updates/2Q-2020.........
+/var/db/repos/gentoo/profiles/updates/2Q-2021.......
+/var/db/repos/gentoo/profiles/updates/2Q-2022...........
+/var/db/repos/gentoo/profiles/updates/2Q-2023..............................
+/var/db/repos/gentoo/profiles/updates/2Q-2024...........
+/var/db/repos/gentoo/profiles/updates/2Q-2025......
+/var/db/repos/gentoo/profiles/updates/2Q-2026......
+/var/db/repos/gentoo/profiles/updates/3Q-2020..............
+/var/db/repos/gentoo/profiles/updates/3Q-2021...........
+/var/db/repos/gentoo/profiles/updates/3Q-2022.....................
+/var/db/repos/gentoo/profiles/updates/3Q-2023..................
+/var/db/repos/gentoo/profiles/updates/3Q-2024.............
+/var/db/repos/gentoo/profiles/updates/3Q-2025.......
+/var/db/repos/gentoo/profiles/updates/3Q-2026.
+/var/db/repos/gentoo/profiles/updates/4Q-2020.......
+/var/db/repos/gentoo/profiles/updates/4Q-2021.......................................................................
+/var/db/repos/gentoo/profiles/updates/4Q-2022........
+/var/db/repos/gentoo/profiles/updates/4Q-2023........................................
+/var/db/repos/gentoo/profiles/updates/4Q-2024...............................................................................
+/var/db/repos/gentoo/profiles/updates/4Q-2025...
+/var/db/repos/gentoo/profiles/updates/4Q-2026...
+
+
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies ... done!
+Dependency resolution took 4.94 s (backtrack: 0/20).
+
+[binary  N g   ] x11-base/xorg-proto-2025.1-1::gentoo  USE="-test" 280 KiB
+[binary  N g   ] x11-themes/hicolor-icon-theme-0.17-1::gentoo  30 KiB
+[binary  N g   ] www-client/firefox-l10n-153.6.0-1:0/esr::gentoo  L10N="-ach -af -an -ar -ast -az -be -bg -bn -br -bs -ca -ca-valencia -cak -cs -cy -da -de -dsb -el -en-CA -en-GB -eo -es-AR -es-CL -es-ES -es-MX -et -eu -fa -ff -fi -fr -fur -fy -ga -gd -gl -gn -gu -he -hi -hr -hsb -hu -hy -ia -id -is -it -ja -ka -kab -kk -km -kn -ko -lij -lt -lv -mk -mr -ms -my -nb -ne -nl -nn -oc -pa -pl -pt-BR -pt-PT -rm -ro -ru -sc -sco -si -sk -skr -sl -son -sq -sr -sv -szl -ta -te -th -tl -tr -trs -uk -ur -uz -vi -xh -zh-CN -zh-TW" 20 KiB
+[binary  N g   ] llvm-core/llvm-common-22.1.8-1::gentoo  USE="-emacs -verify-sig" 40 KiB
+[binary  N g   ] x11-misc/compose-tables-1.8.14-1::gentoo  120 KiB
+[binary  N g   ] dev-libs/gobject-introspection-common-1.86.0-1::gentoo  20 KiB
+[binary  N g   ] sys-apps/hwdata-0.401-1::gentoo  1630 KiB
+[binary  N g   ] media-libs/alsa-topology-conf-1.2.5.1-r1-1::gentoo  USE="-verify-sig" 30 KiB
+[binary  N g   ] media-libs/alsa-ucm-conf-1.2.16.1-1::gentoo  USE="-verify-sig" 110 KiB
+[binary  N g   ] net-misc/mobile-broadband-provider-info-20251101-1::gentoo  USE="-test" 100 KiB
+[binary  N g   ] net-wireless/wireless-regdb-20260530-1::gentoo  50 KiB
+[binary  N g   ] net-dialup/ppp-scripts-0-1::gentoo  20 KiB
+[binary  N g   ] media-fonts/liberation-fonts-2.1.5-2::gentoo  USE="-X -fontforge" 1470 KiB
+[binary  N g   ] sys-apps/lsb-release-3.3-1::gentoo  30 KiB
+[ebuild  N     ] app-misc/hello-2.12.3::gentoo  USE="nls" 1162 KiB
+[binary  N g   ] virtual/ttf-fonts-1-r2-1::gentoo  20 KiB
+[binary  N g   ] app-eselect/eselect-vi-20221122-1::gentoo  20 KiB
+[binary  N g   ] app-eselect/eselect-fontconfig-20220403-1::gentoo  20 KiB
+[binary  N g   ] app-eselect/eselect-rust-20210703-9::gentoo  30 KiB
+[binary  N g   ] llvm-core/clang-common-22.1.8-1::gentoo  USE="cet -bootstrap-prefix -default-compiler-rt -default-libcxx -default-lld -emacs -hardened -llvm-libunwind -verify-sig" 40 KiB
+[binary  N g   ] llvm-runtimes/compiler-rt-22.1.8-1:22::gentoo  USE="atomic-builtins (clang) -debug -test -verify-sig" ABI_X86="32 (64)" 260 KiB
+[binary  N g   ] llvm-runtimes/compiler-rt-sanitizers-22.1.8-1:22::gentoo  USE="asan cfi (clang) ctx-profile dfsan gwp-asan hwasan libfuzzer lsan memprof msan nsan orc profile rtsan safestack scudo tsan ubsan xray -debug (-shadowcallstack) -test -verify-sig" ABI_X86="32 (64)" 7610 KiB
+[binary  N g   ] llvm-runtimes/openmp-22.1.8-1:0/22.1::gentoo  USE="-debug -gdb-plugin -hwloc -ompt -test -verify-sig" ABI_X86="32 (64) (-x32)" PYTHON_SINGLE_TARGET="python3_14 -python3_12 -python3_13" 880 KiB
+[binary  N g   ] llvm-core/clang-linker-config-22-1:22::gentoo  USE="-default-lld" 20 KiB
+[binary  N g   ] llvm-runtimes/clang-rtlib-config-22-1:22::gentoo  USE="-default-compiler-rt" ABI_X86="32 (64)" 20 KiB
+[binary  N g   ] llvm-runtimes/clang-unwindlib-config-22-1:22::gentoo  USE="-default-compiler-rt -llvm-libunwind" 20 KiB
+[binary  N g   ] llvm-runtimes/clang-stdlib-config-22-1:22::gentoo  USE="-default-libcxx" 20 KiB
+[binary  N g   ] llvm-runtimes/clang-runtime-22-r1-1:22::gentoo  USE="compiler-rt openmp sanitize -default-compiler-rt -default-libcxx -default-lld -libcxx -llvm-libunwind -polly" ABI_X86="32 (64) (-x32)" 30 KiB
+[binary    gU  ] net-dns/c-ares-1.34.9-1:0/2::gentoo [1.34.8:0/2::gentoo] USE="-static-libs -test -verify-sig" ABI_X86="(64) -32 (-x32)" 240 KiB
+[binary  N g   ] net-libs/nghttp2-1.70.0-3:0/1.14::gentoo  USE="-debug -hpack-tools -systemd -test -utils -verify-sig -xml" ABI_X86="(64) -32 (-x32)" 190 KiB
+[binary  N g   ] net-libs/nghttp3-1.18.0-1::gentoo  USE="-verify-sig" ABI_X86="(64) -32 (-x32)" 110 KiB
+[binary  N g   ] net-libs/ngtcp2-1.25.0-1::gentoo  USE="openssl ssl -gnutls -verify-sig" ABI_X86="(64) -32 (-x32)" 230 KiB
+[binary   Rg   ] net-misc/iputils-20250605-r4-1::gentoo  USE="arping caps filecaps* nls suid -clockdiff -doc -idn -test -tracepath -verify-sig" 140 KiB
+[binary   Rg   ] app-crypt/libb2-0.98.1-r3-14::gentoo  USE="openmp* -native-cflags -static-libs" ABI_X86="(64) -32 (-x32)" 50 KiB
+[binary  N g   ] dev-libs/libsodium-1.0.22-2:0/26::gentoo  USE="asm urandom -static-libs -verify-sig" ABI_X86="(64) -32 (-x32)" CPU_FLAGS_X86="-aes -sse4_1" 230 KiB
+[binary  N g   ] dev-util/xxd-2025.08.24-r1-4::gentoo  80 KiB
+[binary  N g   ] media-libs/libpng-1.6.59-r1-1:0/16::gentoo  USE="-apng -static-libs -test" ABI_X86="(64) -32 (-x32)" CPU_FLAGS_X86="sse" 380 KiB
+[binary  N g   ] dev-libs/nspr-4.39-2::gentoo  USE="-debug" ABI_X86="(64) -32 (-x32)" 230 KiB
+[binary  N g   ] dev-libs/fribidi-1.0.16-5::gentoo  USE="-doc -test" ABI_X86="(64) -32 (-x32)" 90 KiB
+[binary  N g   ] x11-libs/pixman-0.46.4-6::gentoo  USE="(-loongson2f) -static-libs -test" ABI_X86="(64) -32 (-x32)" CPU_FLAGS_X86="mmxext sse2 -ssse3" 300 KiB
+[binary  N g   ] media-libs/dav1d-1.5.4-1:0/7::gentoo  USE="8bit 10bit asm -test -xxhash" ABI_X86="(64) -32 (-x32)" 630 KiB
+[binary  N g   ] media-gfx/graphite2-1.3.14_p20210810-r5-6::gentoo  USE="-perl -test" ABI_X86="(64) -32 (-x32)" PERL_FEATURES="(-debug) -ithreads -quadmath" 140 KiB
+[binary  N g   ] media-libs/libjpeg-turbo-3.1.4.1-1:0/0.2::gentoo  USE="-java -static-libs -test -verify-sig" ABI_X86="(64) -32 (-x32)" 550 KiB
+[binary  N g   ] x11-libs/libICE-1.1.2-8::gentoo  ABI_X86="(64) -32 (-x32)" 110 KiB
+[binary   Rg   ] sys-devel/gettext-0.23.2-7::gentoo  USE="acl cxx ncurses nls openmp* xattr -doc -emacs -git -java -static-libs -verify-sig" ABI_X86="(64) -32 (-x32)" 2690 KiB
+[binary  N g   ] media-libs/alsa-lib-1.2.16.1-1::gentoo  USE="-debug -doc -python -verify-sig" ABI_X86="(64) -32 (-x32)" PYTHON_SINGLE_TARGET="python3_14 -python3_12 -python3_13 (-python3_15)" 520 KiB
+[binary  N g   ] media-libs/libaom-3.12.1-7:0/3::gentoo  USE="examples (-big-endian) -debug -doc -test" ABI_X86="(64) -32 (-x32)" CPU_FLAGS_X86="mmx sse sse2 -avx -avx2 -sse3 -sse4_1 -sse4_2 -ssse3" 1530 KiB
+[binary  N g   ] dev-libs/icu-78.3-5:0/78::gentoo  USE="-debug -doc -examples -static-libs -test -verify-sig" ABI_X86="(64) -32 (-x32)" 10610 KiB
+[binary  N g   ] dev-libs/libevent-2.1.13-1:0/2.1-7::gentoo  USE="clock-gettime ssl -debug -malloc-replacement -static-libs -test -verbose-debug -verify-sig" ABI_X86="(64) -32 (-x32)" 340 KiB
+[binary  N g   ] media-libs/libvpx-1.16.0-5:0/12::gentoo  USE="highbitdepth postproc -doc -static-libs -test" ABI_X86="(64) -32 (-x32)" 1060 KiB
+[binary  N g   ] app-arch/zip-3.0_p16-1::gentoo  USE="bzip2 crypt (unicode) -natspec" 270 KiB
+[binary  N g   ] dev-util/cbindgen-0.29.4-2::gentoo  USE="-debug -test" 1430 KiB
+[binary  N g   ] dev-lang/nasm-3.02-2::gentoo  USE="-doc" 390 KiB
+[binary  N g   ] app-arch/brotli-1.2.1-1:0/1::gentoo  USE="-debug -python -test" ABI_X86="(64) -32 (-x32)" PYTHON_TARGETS="python3_14 -python3_12 -python3_13 (-python3_15)" 390 KiB
+[binary  N g   ] dev-cpp/ada-4.0.0-1:0/4::gentoo  300 KiB
+[binary  N g   ] dev-cpp/simdutf-9.3.2-1:0/37::gentoo  USE="-doc -test" 370 KiB
+[binary  N g   ] dev-libs/libuv-1.52.1-2:0/1::gentoo  USE="-verify-sig" 190 KiB
+[binary  N g   ] dev-libs/simdjson-5.0.3-1:0/34::gentoo  USE="all-impls -nan -test -tools" 490 KiB
+[binary  N g   ] x11-libs/libXau-1.0.12-8::gentoo  USE="-doc" ABI_X86="(64) -32 (-x32)" 60 KiB
+[binary  N g   ] x11-libs/libXdmcp-1.1.5-10::gentoo  USE="-doc" ABI_X86="(64) -32 (-x32)" 60 KiB
+[binary  N g   ] x11-libs/libpciaccess-0.19-1::gentoo  USE="zlib -static-libs" ABI_X86="(64) -32 (-x32)" 60 KiB
+[binary  N g   ] dev-util/spirv-tools-1.4.357.0-1::gentoo  USE="-test" ABI_X86="(64) -32 (-x32)" 1870 KiB
+[binary  N g   ] x11-libs/libxshmfence-1.3.3-7::gentoo  ABI_X86="(64) -32 (-x32)" 50 KiB
+[binary  N g   ] dev-perl/Error-0.170.300-r1-3::gentoo  USE="-test" PERL_FEATURES="(-debug) -ithreads -quadmath" 40 KiB
+[binary  N g   ] dev-perl/Crypt-URandom-0.550.0-2::gentoo  USE="-test" PERL_FEATURES="(-debug) -ithreads -quadmath" 40 KiB
+[binary  N g   ] dev-perl/TimeDate-2.330.0-r1-6::gentoo  USE="-test" PERL_FEATURES="(-debug) -ithreads -quadmath" 50 KiB
+[binary  N g   ] dev-libs/jansson-2.15.1-2:0/4::gentoo  USE="-doc -static-libs" 90 KiB
+[binary  N g   ] dev-libs/libnl-3.12.0-18:3::gentoo  USE="debug -python -test -utils -verify-sig" ABI_X86="(64) -32 (-x32)" PYTHON_TARGETS="python3_14 -python3_12 -python3_13" 380 KiB
+[binary  N g   ] dev-libs/libpcre-8.45-r4-10:3::gentoo  USE="bzip2 cxx jit readline (unicode) zlib -libedit -pcre16 -pcre32 -static-libs -valgrind" ABI_X86="(64) -32 (-x32)" 850 KiB
+[binary  N g   ] app-admin/metalog-20260811-1::gentoo  USE="(unicode) zlib" 70 KiB
+[binary  N g   ] dev-perl/Net-SSLeay-1.960.0-r1-2::gentoo  USE="-examples -minimal -test" PERL_FEATURES="(-debug) -ithreads -quadmath" 250 KiB
+[binary  N g   ] virtual/perl-Digest-MD5-2.590.0-r1-2::gentoo  20 KiB
+[binary  N g   ] virtual/perl-Digest-SHA-6.40.0-r3-2::gentoo  20 KiB
+[binary   Rg   ] net-misc/curl-8.23.0-1::gentoo  USE="adns alt-svc ftp hsts http2* http3* httpsrr imap openssl pop3 psl quic* smtp ssl tftp websockets -brotli -debug (-ech) -gnutls -gopher -idn -kerberos -ldap -mbedtls (-rustls) -sasl-scram -ssh -static-libs -telnet -test -verify-sig -zstd" ABI_X86="(64) -32 (-x32)" CURL_SSL="openssl -gnutls -mbedtls (-rustls)" 1380 KiB
+[binary  N g   ] app-editors/vim-core-9.2.1125-1::gentoo  USE="acl nls -minimal" 7570 KiB
+[binary  N g   ] x11-libs/libxcb-1.17.0-12:0/1.12::gentoo  USE="xkb -doc (-selinux) -test" ABI_X86="(64) -32 (-x32)" 460 KiB
+[binary  N g   ] x11-libs/libdrm-2.4.134-2::gentoo  USE="-doc -test -tools -udev -valgrind" ABI_X86="(64) -32 (-x32)" VIDEO_CARDS="amdgpu intel nouveau radeon (-exynos) (-freedreno) (-omap) (-tegra) (-vc4) (-vivante) -vmware" 310 KiB
+[binary  N g   ] dev-libs/nss-3.125-1::gentoo  USE="utils -cacert -test -test-full" ABI_X86="(64) -32 (-x32)" CPU_FLAGS_X86="-avx2 -sse3" 2570 KiB
+[binary  N g   ] sys-libs/slang-2.3.3-r2-6::gentoo  USE="pcre readline zlib -cjk -png -static-libs" ABI_X86="(64) -32 (-x32)" 810 KiB
+[binary  N g   ] media-libs/libwebp-1.6.0-8:0/7::gentoo  USE="jpeg png -gif -opengl -static-libs -swap-16bit-csp -tiff" ABI_X86="(64) -32 (-x32)" CPU_FLAGS_X86="sse2 -avx2 -sse4_1" 450 KiB
+[binary  N g   ] net-libs/nodejs-26.12.1-1:0/26::gentoo  USE="icu inspector npm snapshot ssl system-ssl -debug -doc (-lto) -pax-kernel -system-icu -temporal -test" CPU_FLAGS_X86="sse2" 26610 KiB
+[binary  N g   ] dev-perl/Digest-HMAC-1.50.0-3::gentoo  USE="-test" PERL_FEATURES="(-debug) -ithreads -quadmath" 30 KiB
+[binary  N g   ] virtual/logger-0-r3-2::gentoo  USE="-systemd" 20 KiB
+[binary  N g   ] dev-perl/IO-Socket-SSL-2.95.0-3::gentoo  USE="-examples -idn -test" PERL_FEATURES="(-debug) -ithreads -quadmath" 190 KiB
+[binary  N g   ] x11-libs/libX11-1.8.14-1::gentoo  USE="-doc -test" ABI_X86="(64) -32 (-x32)" 830 KiB
+[binary  N g   ] virtual/perl-libnet-3.150.0-r3-2::gentoo  USE="ssl" 20 KiB
+[binary  N g   ] x11-libs/xcb-util-keysyms-0.4.1-11::gentoo  ABI_X86="(64) -32 (-x32)" 50 KiB
+[binary  N g   ] dev-perl/Authen-SASL-2.200.0-2::gentoo  USE="-kerberos -test" PERL_FEATURES="(-debug) -ithreads -quadmath" 50 KiB
+[binary  N g   ] dev-libs/newt-0.52.25-r2-33::gentoo  USE="nls -gpm -python -tcl" PYTHON_TARGETS="python3_14 -python3_12 -python3_13" 120 KiB
+[ebuild  N     ] dev-lang/rust-bin-1.98.1:1.98.1::gentoo  USE="clippy rustfmt (-big-endian) -doc (-prefix) -rust-analyzer -rust-src -verify-sig" ABI_X86="(64) -32 (-x32)" CPU_FLAGS_X86="sse2" LLVM_SLOT="(22)" 197813 KiB
+[binary  N g   ] x11-libs/libXext-1.3.7-1::gentoo  USE="-doc" ABI_X86="(64) -32 (-x32)" 90 KiB
+[binary  N g   ] x11-libs/libXfixes-6.0.2-6::gentoo  USE="-doc" ABI_X86="(64) -32 (-x32)" 60 KiB
+[binary  N g   ] x11-libs/libXrender-0.9.13-1::gentoo  ABI_X86="(64) -32 (-x32)" 80 KiB
+[binary  N g   ] virtual/libelf-3-r1-1:0/1::gentoo  ABI_X86="(64) -32 (-x32)" 30 KiB
+[binary  N g   ] x11-libs/libXcomposite-0.4.7-1::gentoo  USE="-doc" ABI_X86="(64) -32 (-x32)" 60 KiB
+[binary  N g   ] x11-libs/libXdamage-1.1.7-1::gentoo  ABI_X86="(64) -32 (-x32)" 60 KiB
+[binary  N g   ] dev-perl/MailTools-2.220.0-3::gentoo  USE="-examples -test" PERL_FEATURES="(-debug) -ithreads -quadmath" 70 KiB
+[binary  N g   ] media-libs/libglvnd-1.7.0-11::gentoo  USE="X -test" ABI_X86="(64) -32 (-x32)" 360 KiB
+[binary  N g   ] x11-libs/libXrandr-1.5.5-1::gentoo  USE="-doc" ABI_X86="(64) -32 (-x32)" 80 KiB
+[binary  N g   ] x11-libs/libXcursor-1.2.3-7::gentoo  USE="-doc" ABI_X86="(64) -32 (-x32)" 80 KiB
+[binary  N g   ] x11-libs/libXi-1.8.4-1::gentoo  USE="-doc" ABI_X86="(64) -32 (-x32)" 120 KiB
+[binary  N g   ] x11-libs/libXxf86vm-1.1.7-1::gentoo  USE="-doc" ABI_X86="(64) -32 (-x32)" 60 KiB
+[binary  N g   ] media-libs/libepoxy-1.5.10-r3-9::gentoo  USE="X -test" ABI_X86="(64) -32 (-x32)" 320 KiB
+[binary  N g   ] virtual/opengl-8-1::gentoo  USE="(X)" ABI_X86="(64) -32 (-x32)" 30 KiB
+[binary  N g   ] app-editors/vim-9.2.1125-6::gentoo  USE="acl crypt nls -X -cscope -debug -gpm -lua -minimal -pango -perl -python -racket -ruby (-selinux) -sound -tcl -terminal -vim-pager -wayland" LUA_SINGLE_TARGET="lua5-1 -lua5-3 -lua5-4 -luajit" PERL_FEATURES="(-debug) -ithreads -quadmath" PYTHON_SINGLE_TARGET="python3_14 -python3_12 -python3_13" 1670 KiB
+[binary  N g   ] app-vim/gentoo-syntax-16-1::gentoo  USE="-ignore-glep31" 40 KiB
+[binary    gU  ] app-crypt/gnupg-2.5.24-r2-3::gentoo [2.5.24-r1::gentoo] USE="alternatives bzip2 nls readline smartcard ssl tofu -doc -ldap (-selinux) -test -tools -tpm -usb -user-socket (-verify-sig) -wks-server" 3190 KiB
+[binary  N g   ] dev-vcs/git-2.55.0-12::gentoo  USE="curl gpg iconv nls pcre perl rust safe-directory webdav -cgi -cvs -debug -doc -highlight -keyring -perforce (-selinux) -subversion -test -tk -xinetd" PYTHON_SINGLE_TARGET="python3_14 -python3_12 -python3_13" 9800 KiB
+[binary   Rg   ] app-portage/portage-utils-0.97.1-1::gentoo  USE="openmp* qmanifest -static" 200 KiB
+[binary  N g   ] media-libs/freetype-2.14.3-9:2::gentoo  USE="adobe-cff bzip2 cleartype-hinting harfbuzz png -X -brotli -debug -doc -fontforge -static-libs -svg -utils -verify-sig" ABI_X86="(64) -32 (-x32)" 600 KiB
+[binary  N g   ] llvm-core/llvm-22.1.8-4:22/22.1::gentoo  USE="binutils-plugin libffi zstd -debug (-debuginfod) -doc -exegesis -libedit -test -verify-sig -xml -z3" ABI_X86="(64) -32 (-x32)" LLVM_TARGETS="(AArch64) (AMDGPU) (ARM) (AVR) (BPF) (Hexagon) (Lanai) (LoongArch) (MSP430) (Mips) (NVPTX) (PowerPC) (RISCV) (SPIRV) (Sparc) (SystemZ) (VE) (WebAssembly) (X86) (XCore) -ARC -CSKY -DirectX -M68k -Xtensa" 99760 KiB
+[binary  N g   ] llvm-core/llvmgold-22-1::gentoo  20 KiB
+[binary  N g   ] llvm-core/llvm-toolchain-symlinks-22-1:22::gentoo  USE="-multilib-symlinks -native-symlinks" 30 KiB
+[binary  N g   ] media-libs/mesa-26.1.8-r1-3::gentoo  USE="X llvm (opengl) proprietary-codecs zstd -debug -lm-sensors -opencl -sysprof -test -unwind -vaapi -valgrind -vulkan -wayland" ABI_X86="(64) -32 (-x32)" CPU_FLAGS_X86="sse2" LLVM_SLOT="22 -18 -19 -20 -21" VIDEO_CARDS="intel nouveau radeon radeonsi -asahi -d3d12 (-freedreno) -i915 (-imagination) -lavapipe (-lima) -nvk (-panfrost) -r300 -r600 (-v3d) (-vc4) -virgl (-vivante) -vmware -zink" 8850 KiB
+[binary  N g   ] llvm-core/lld-22.1.8-r1-1:22/22.1::gentoo  USE="zstd -debug -test -verify-sig" LLVM_TARGETS="(AArch64) (AMDGPU) (ARM) (AVR) (BPF) (Hexagon) (Lanai) (LoongArch) (MSP430) (Mips) (NVPTX) (PowerPC) (RISCV) (SPIRV) (Sparc) (SystemZ) (VE) (WebAssembly) (X86) (XCore) -ARC -CSKY -DirectX -M68k -Xtensa" 1960 KiB
+[binary  N g   ] llvm-core/lld-toolchain-symlinks-22-1:22::gentoo  USE="-multilib-symlinks -native-symlinks" 30 KiB
+[binary  N g   ] app-arch/cpio-2.15-6::gentoo  USE="nls" 270 KiB
+[binary  N g   ] app-alternatives/cpio-0-1::gentoo  USE="gnu -libarchive (-split-usr)" 20 KiB
+[ebuild  N     ] sys-kernel/linux-firmware-20261019::gentoo  USE="initramfs redistributable -bindist -compress-xz -compress-zstd -deduplicate -dist-kernel -savedconfig" 656928 KiB
+[binary  N g   ] sys-devel/bc-1.08.2-6::gentoo  USE="readline -libedit -static" 140 KiB
+[binary  N g   ] app-alternatives/bc-0-1::gentoo  USE="gnu -gh" 20 KiB
+[binary  N g   ] media-libs/fontconfig-2.18.3-1:1.0::gentoo  USE="nls -doc -test" ABI_X86="(64) -32 (-x32)" 530 KiB
+[binary  N g   ] acct-group/nullmail-0-r2-2::gentoo  20 KiB
+[binary  N g   ] x11-libs/libSM-1.2.6-6::gentoo  USE="uuid -doc" ABI_X86="(64) -32 (-x32)" 70 KiB
+[binary  N g   ] acct-group/messagebus-0-r3-2::gentoo  20 KiB
+[binary  N g   ] acct-user/messagebus-0-r3-2::gentoo  0 KiB
+[binary  N g   ] sys-apps/dbus-1.16.2-18::gentoo  USE="-X -debug -doc -elogind (-selinux) -static-libs -systemd -test -valgrind" ABI_X86="(64) -32 (-x32)" 540 KiB
+[binary  N g   ] acct-group/plugdev-0-r3-2::gentoo  20 KiB
+[binary  N g   ] net-wireless/wpa_supplicant-2.11-r4-6::gentoo  USE="ap dbus fils mbo mesh readline -broadcom-sta -eap-sim -eapol-test -gui -macsec -p2p -privsep (-selinux) -smartcard -tkip -uncommon-eap-types -wep -wps" 1140 KiB
+[binary  N g   ] app-crypt/sbsigntools-0.9.5-2::gentoo  80 KiB
+[binary  N g   ] acct-user/nullmail-0-r2-2::gentoo  0 KiB
+[binary  N g   ] mail-mta/nullmailer-2.2-r2-13::gentoo  USE="ssl -test" 150 KiB
+[binary  N g   ] virtual/mta-1-r2-1::gentoo  20 KiB
+[binary  N g   ] dev-libs/glib-2.88.2-2:2::gentoo  USE="elf introspection mime xattr -dbus -debug -doc (-selinux) -static-libs -sysprof -systemtap -test -utils" ABI_X86="(64) -32 (-x32)" 3970 KiB
+[binary  N g   ] x11-misc/shared-mime-info-2.4-r3-5::gentoo  USE="-test" 610 KiB
+[binary  N g   ] x11-libs/cairo-1.18.4-r1-34::gentoo  USE="X glib (-aqua) (-debug) -gtk-doc -lzo -test" ABI_X86="(64) -32 (-x32)" 750 KiB
+[binary  N g   ] dev-util/desktop-file-utils-0.28-r1-1::gentoo  110 KiB
+[binary  N g   ] net-libs/libmbim-1.34.0-3::gentoo  USE="-gtk-doc -introspection" 360 KiB
+[binary  N g   ] net-libs/libndp-1.9-r1-6::gentoo  ABI_X86="(64) -32 (-x32)" 50 KiB
+[binary    gU  ] dev-lang/python-3.14.10-1:3.14::gentoo [3.14.7:3.14::gentoo] USE="ensurepip gdbm ncurses readline sqlite ssl -bluetooth -build -debug -examples (-jit) -libedit -pgo -tail-call-interp -test -tk -valgrind -verify-sig" LLVM_SLOT="19" 9380 KiB
+[binary  N g   ] dev-util/pahole-1.31-1::gentoo  USE="-debug -verify-sig" PYTHON_SINGLE_TARGET="python3_14 -python3_12 -python3_13" 400 KiB
+[binary  N g   ] virtual/libudev-257-2:0/1::gentoo  USE="-systemd" ABI_X86="(64) -32 (-x32)" 30 KiB
+[binary  N g   ] dev-libs/libgudev-238-r2-2::gentoo  USE="-introspection -test" ABI_X86="(64) -32 (-x32)" 60 KiB
+[binary  N g   ] net-dialup/ppp-2.5.4-r1-3:0/2.5.4::gentoo  USE="pam -activefilter -atm (-selinux) -systemd" 390 KiB
+[binary  N g   ] sys-kernel/dracut-112-1::gentoo  USE="-debug -dracut-cpio (-selinux) -systemd -test" 420 KiB
+[binary  N g   ] sys-kernel/installkernel-68-r1-2::gentoo  USE="dracut -efistub -grub -refind -systemd -systemd-boot -ugrd -uki -ukify" 40 KiB
+[binary  N g   ] llvm-core/clang-22.1.8-6:22/22.1::gentoo  USE="extra (pie) static-analyzer -debug -doc (-ieee-long-double) -test -verify-sig -xml" ABI_X86="(64) -32 (-x32)" LLVM_TARGETS="(AArch64) (AMDGPU) (ARM) (AVR) (BPF) (Hexagon) (Lanai) (LoongArch) (MSP430) (Mips) (NVPTX) (PowerPC) (RISCV) (SPIRV) (Sparc) (SystemZ) (VE) (WebAssembly) (X86) (XCore) -ARC -CSKY -DirectX -M68k -Xtensa" PYTHON_SINGLE_TARGET="python3_14 -python3_12 -python3_13" 42340 KiB
+[binary  N g   ] llvm-core/clang-toolchain-symlinks-22-1:22::gentoo  USE="-gcc-symlinks -multilib-symlinks -native-symlinks" 30 KiB
+[binary  N g   ] dev-libs/gobject-introspection-1.86.0-1::gentoo  USE="-doctool -gtk-doc -test" PYTHON_SINGLE_TARGET="python3_14 -python3_12 -python3_13" 650 KiB
+[binary  N g   ] media-libs/harfbuzz-12.3.2-4:0/6.0.0::gentoo  USE="cairo glib graphite introspection truetype -debug -doc -experimental -icu -test" ABI_X86="(64) -32 (-x32)" 1270 KiB
+[binary  N g   ] x11-libs/gdk-pixbuf-2.44.7-2:2::gentoo  USE="introspection -gif -gtk-doc -jpeg -test -tiff" ABI_X86="(64) -32 (-x32)" 520 KiB
+[binary  N g   ] x11-libs/pango-1.57.1-3::gentoo  USE="introspection -X -debug -examples -gtk-doc -libthai -sysprof -test" ABI_X86="(64) -32 (-x32)" 430 KiB
+[binary  N g   ] app-accessibility/at-spi2-core-2.58.8-3:2::gentoo  USE="introspection -X -dbus-broker -gtk-doc -systemd -test" ABI_X86="(64) -32 (-x32)" PYTHON_TARGETS="python3_14 -python3_12 -python3_13" 570 KiB
+[binary  N g   ] net-libs/libqrtr-glib-1.4.0-1::gentoo  USE="-gtk-doc" 60 KiB
+[binary  N g   ] media-libs/libass-0.17.5-1:0/9::gentoo  USE="fontconfig -libunibreak -test -verify-sig" ABI_X86="(64) -32 (-x32)" 150 KiB
+[binary  N g   ] app-admin/sudo-1.9.17_p2-6::gentoo  USE="nls pam secure-path sendmail ssl -gcrypt -ldap -offensive -sasl (-selinux) -skey -sssd -verify-sig" 1750 KiB
+[binary  N g   ] gnome-base/librsvg-2.62.3-1:2::gentoo  USE="introspection vala -debug -gtk-doc -test" ABI_X86="(64) -32 (-x32)" 2230 KiB
+[binary  N g   ] media-video/ffmpeg-8.1.3-5:0/60.62.62::gentoo  USE="bzip2 dav1d drm fontconfig gnutls gpl libass truetype xml zlib -X -alsa -amf -amr -amrenc (-appkit) -bluray -bs2b -cairo -cdio -chromaprint -chromium -codec2 -cuda-clang -doc -dvd -fdk -flite -frei0r -fribidi -gcrypt -gme -gmp -gsm -iec61883 -ieee1394 -jack -jpeg2k -jpegxl -kvazaar -ladspa -lame -lcms -libaom -libaribb24 -libcaca -libilbc -liblc3 -libplacebo -librtmp -libsoxr -lv2 -lzma -modplug -nvenc -ocr -openal -opencl -opencolorio -opengl -openh264 -openmpt -openssl -opus -pulseaudio -qrcode -qsv -quirc -rabbitmq -rav1e -rist -rubberband -samba -sdl -snappy -sndio -soc -sofa -speex -srt -ssh -svg -svt-av1 -theora -twolame -v4l -vaapi -vdpau -verify-sig -vidstab -vmaf -vorbis -vpx -vulkan -webp -x264 -x265 -xvid -zeromq -zimg -zvbi" ABI_X86="(64) -32 (-x32)" 9390 KiB
+[binary  N g   ] dev-util/gtk-update-icon-cache-3.24.42-5::gentoo  100 KiB
+[binary  N g   ] net-libs/libqmi-1.36.0-8:0/5.11::gentoo  USE="mbim qrtr -gtk-doc -introspection" 1260 KiB
+[binary  N g   ] x11-themes/adwaita-icon-theme-legacy-46.2-1::gentoo  2040 KiB
+[binary  N g   ] net-misc/modemmanager-1.24.2-6:0/1::gentoo  USE="introspection mbim qmi qrtr udev -elogind -gtk-doc -policykit (-selinux) -systemd -test -vala" 1580 KiB
+[binary  N g   ] x11-themes/adwaita-icon-theme-49.0-2::gentoo  USE="-branding" 490 KiB
+[binary  N g   ] net-misc/networkmanager-1.58.1-r1-6::gentoo  USE="concheck introspection modemmanager nss ppp tools wext wifi -audit -bluetooth -clat -connection-sharing -debug -dhcpcd -elogind -gnutls -gtk-doc -iptables -iwd -libedit -nbft -nftables -ofono -ovs -policykit -psl -resolvconf (-selinux) -syslog -systemd -teamd -test -vala" ABI_X86="(64) -32 (-x32)" 4740 KiB
+[binary  N g   ] x11-libs/gtk+-3.24.52-3:3::gentoo  USE="X introspection (-aqua) -broadway -cloudproviders -colord -cups -examples -gtk-doc -sysprof -test -vim-syntax -wayland -xinerama" ABI_X86="(64) -32 (-x32)" 8680 KiB
+[binary  N g   ] virtual/freedesktop-icon-theme-0-r4-1::gentoo  20 KiB
+[ebuild  N     ] www-client/firefox-153.6.0:esr::gentoo  USE="X clang gmp-autoupdate (jumbo-build) system-av1 system-harfbuzz system-icu system-jpeg system-libevent system-libvpx system-webp telemetry -dbus -debug -eme-free -gnome-shell -hardened -hwaccel -jack -jpegxl -libproxy -openh264 -pgo -pulseaudio (-selinux) -sndio -system-pipewire -system-png -test (-valgrind) -wasm-sandbox -wayland -wifi" LLVM_SLOT="22 (-23)" 783121 KiB
+[ebuild  N     ] sys-kernel/gentoo-kernel-bin-6.18.57:6.18.57::gentoo  USE="initramfs -debug (-generic-uki) -modules-compress -test -verify-sig" 619233 KiB
+[ebuild  N     ] virtual/dist-kernel-6.18.57:0/6.18.57::gentoo  0 KiB
+
+Total: 169 packages (3 upgrades, 161 new, 5 reinstalls, 163 binaries), Size of downloads: 2566416 KiB
+
+!!! The following binary packages have been ignored due to non matching USE:
+
+    =www-client/firefox-153.6.0 dbus gnome-shell jpegxl pulseaudio selinux wayland
+    =www-client/firefox-153.6.0 dbus gnome-shell jpegxl pulseaudio wayland
+    =www-client/firefox-153.6.0 dbus gnome-shell jpegxl pgo
+    =www-client/firefox-153.6.0 dbus gnome-shell jpegxl pgo pulseaudio selinux wayland
+    =www-client/firefox-153.6.0 dbus gnome-shell jpegxl pgo pulseaudio
+    =www-client/firefox-153.6.0 dbus gnome-shell jpegxl pgo wayland
+    =www-client/firefox-153.6.0 dbus gnome-shell jpegxl pgo pulseaudio wayland
+    =www-client/firefox-153.6.0 dbus jpegxl pulseaudio selinux wayland
+    =www-client/firefox-153.6.0 dbus jpegxl pulseaudio wayland
+
+NOTE: The --binpkg-respect-use=n option will prevent emerge
+      from ignoring these binary packages if possible.
+      Using --binpkg-respect-use=y will silence this warning.
+
+ * IMPORTANT: 19 news items need reading for repository 'gentoo'.
+ * Use eselect news read to view new items.
+

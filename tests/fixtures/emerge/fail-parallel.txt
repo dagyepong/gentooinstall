@@ -1,0 +1,173 @@
+
+Performing Global Updates
+(Could take a couple of minutes if you have a lot of binary packages.)
+  .='update pass'  *='binary update'  #='/var/db update'  @='/var/db move'
+  s='/var/db SLOT move'  %='binary move'  S='binary SLOT move'
+  p='update /etc/portage/package.*'
+
+
+Initializing /etc/portage/gnupg
+gpg: Generating Portage local OpenPGP trust key
+gpg: done
+
+pub  rsa4096/A13D0EF1914E7A72
+     created: 2018-05-28  expires: 2028-07-01  usage: C   
+     trust: unknown       validity: unknown
+      EF9538C9E8E64311A52CDEDFA13D0EF1914E7A72
+
+     Gentoo repository mirrors (automated git signing key) <repomirrorci@gentoo.org>
+
+This key is due to expire on 2028-07-01.
+
+The signature will be marked as non-exportable.
+
+gpg: "F748E9B3C47E393CC24C8FAF7C2AC09CD98F2EDF" is not the primary fingerprint
+
+pub  rsa4096/DB6B8C1F96D8BF6D
+     created: 2011-11-25  expires: 2028-07-01  usage: C   
+     trust: unknown       validity: unknown
+      DCD05B71EAB94199527F44ACDB6B8C1F96D8BF6D
+
+     Gentoo ebuild repository signing key (Automated Signing Key) <infrastructure@gentoo.org>
+     Gentoo Portage Snapshot Signing Key (Automated Signing Key)
+
+This key is due to expire on 2028-07-01.
+
+The signature will be marked as non-exportable.
+
+gpg: "E1D6ABB63BFCFB4BA02FDF1CEC590EEAC9189250" is not the primary fingerprint
+
+pub  dsa1024/9E6438C817072058
+     created: 2004-07-20  expires: 2028-07-01  usage: SC  
+     trust: unknown       validity: unknown
+      D99EAC7379A850BCE47DA5F29E6438C817072058
+
+     Gentoo Linux Release Engineering (Gentoo Linux Release Signing Key) <releng@gentoo.org>
+
+This key is due to expire on 2028-07-01.
+
+The signature will be marked as non-exportable.
+
+gpg: "C7FAC844D6122F080E1821A10403710E1415B4ED" is not the primary fingerprint
+
+pub  rsa4096/BB572E0E2D182910
+     created: 2009-08-25  expires: 2028-07-01  usage: SC  
+     trust: unknown       validity: unknown
+      13EBBDBEDE7A12775DFDB1BABB572E0E2D182910
+
+     Gentoo Linux Release Engineering (Automated Weekly Release Key) <releng@gentoo.org>
+
+This key is due to expire on 2028-07-01.
+
+The signature will be marked as non-exportable.
+
+gpg: "534E4209AB49EEE1C19D96162C44695DB9F6043D" is not the primary fingerprint
+gpg: next trustdb check due at 2028-07-01
+
+ * IMPORTANT: 19 news items need reading for repository 'gentoo'.
+ * Use eselect news read to view new items.
+
+Calculating dependencies ... done!
+Dependency resolution took 0.21 s (backtrack: 0/20).
+
+>>> Verifying ebuild manifests
+>>> Jobs: 0 of 2 complete, 1 running                                    Load avg: 0.79, 0.45, 0.34
+>>> Emerging (1 of 2) app-misc/hello-2.12.3::gentoo
+>>> Jobs: 0 of 2 complete, 1 running                                    Load avg: 0.79, 0.45, 0.34
+>>> Jobs: 0 of 2 complete, 2 running                                    Load avg: 0.79, 0.45, 0.34
+>>> Emerging binary (2 of 2) app-text/tree-2.2.1::gentoo
+>>> Jobs: 0 of 2 complete, 2 running                                    Load avg: 0.79, 0.45, 0.34
+>>> Jobs: 0 of 2 complete, 1 running                                    Load avg: 0.79, 0.45, 0.34
+>>> Failed to emerge app-misc/hello-2.12.3, Log file:
+>>> Jobs: 0 of 2 complete, 1 running, 1 merge wait                      Load avg: 0.79, 0.45, 0.34
+>>>  '/var/tmp/portage/app-misc/hello-2.12.3/temp/build.log'
+>>> Jobs: 0 of 2 complete, 1 running, 1 merge wait                      Load avg: 0.79, 0.45, 0.34
+>>> Jobs: 0 of 2 complete, 1 running, 1 failed, 1 merge wait            Load avg: 0.79, 0.45, 0.34
+>>> Jobs: 0 of 2 complete, 1 failed, 1 merge wait                       Load avg: 0.79, 0.45, 0.34
+>>> Installing (2 of 2) app-text/tree-2.2.1::gentoo
+>>> Jobs: 0 of 2 complete, 1 failed, 1 merge wait                       Load avg: 0.79, 0.45, 0.34
+>>> Recording app-text/tree in "world" favorites file...
+>>> Jobs: 0 of 2 complete, 1 failed                                     Load avg: 0.97, 0.50, 0.35
+>>> Completed (2 of 2) app-text/tree-2.2.1::gentoo
+>>> Jobs: 0 of 2 complete, 1 failed                                     Load avg: 0.97, 0.50, 0.35
+>>> Jobs: 1 of 2 complete, 1 failed                                     Load avg: 0.97, 0.50, 0.35
+
+[32m * [39;49;00mPackage:    app-misc/hello-2.12.3:0
+[32m * [39;49;00mRepository: gentoo
+[32m * [39;49;00mUpstream:   bug-hello@gnu.org
+[32m * [39;49;00mUSE:        abi_x86_64 amd64 elibc_glibc kernel_linux nls
+[32m * [39;49;00mFEATURES:   network-sandbox preserve-libs sandbox userpriv usersandbox
+Unable to unshare: EPERM (for FEATURES="pid-sandbox")
+Unable to unshare: EPERM (for FEATURES="ipc-sandbox network-sandbox pid-sandbox")
+>>> Unpacking source...
+>>> Unpacking 'hello-2.12.3.tar.gz' to /var/tmp/portage/app-misc/hello-2.12.3/work
+>>> Source unpacked in /var/tmp/portage/app-misc/hello-2.12.3/work
+Unable to unshare: EPERM (for FEATURES="ipc-sandbox network-sandbox pid-sandbox")
+>>> Preparing source in /var/tmp/portage/app-misc/hello-2.12.3/work/hello-2.12.3 ...
+>>> Source prepared.
+Unable to unshare: EPERM (for FEATURES="ipc-sandbox network-sandbox pid-sandbox")
+>>> Configuring source in /var/tmp/portage/app-misc/hello-2.12.3/work/hello-2.12.3 ...
+ * econf: updating hello-2.12.3/build-aux/config.guess with /usr/share/gnuconfig/config.guess
+ * econf: updating hello-2.12.3/build-aux/config.sub with /usr/share/gnuconfig/config.sub
+./configure --prefix=/usr --build=x86_64-pc-linux-gnu --host=x86_64-pc-linux-gnu --mandir=/usr/share/man --infodir=/usr/share/info --datadir=/usr/share --sysconfdir=/etc --localstatedir=/var/lib --datarootdir=/usr/share --disable-dependency-tracking --disable-silent-rules --docdir=/usr/share/doc/hello-2.12.3 --htmldir=/usr/share/doc/hello-2.12.3/html --libdir=/usr/lib64 --enable-nls
+checking for a BSD-compatible install... /usr/lib/portage/python3.14/ebuild-helpers/xattr/install -c
+checking whether sleep supports fractional seconds... yes
+checking filesystem timestamp resolution... 0.01
+checking whether build environment is sane... yes
+checking for a race-free mkdir -p... /usr/bin/mkdir -p
+checking for gawk... gawk
+checking whether make sets $(MAKE)... yes
+checking whether make supports nested variables... yes
+checking xargs -n works... yes
+checking whether UID '250' is supported by ustar format... yes
+checking whether GID '250' is supported by ustar format... yes
+checking how to create a ustar tar archive... gnutar
+checking for x86_64-pc-linux-gnu-gcc... x86_64-pc-linux-gnu-gcc
+checking whether the C compiler works... no
+configure: error: in '/var/tmp/portage/app-misc/hello-2.12.3/work/hello-2.12.3':
+configure: error: C compiler cannot create executables
+See 'config.log' for more details
+
+!!! Please attach the following file when seeking support:
+!!! /var/tmp/portage/app-misc/hello-2.12.3/work/hello-2.12.3/config.log
+ [31;01m*[0m ERROR: app-misc/hello-2.12.3::gentoo failed (configure phase):
+ [31;01m*[0m   econf failed
+ [31;01m*[0m 
+ [31;01m*[0m Call stack:
+ [31;01m*[0m               ebuild.sh, line 143:  Called src_configure
+ [31;01m*[0m             environment, line 268:  Called econf '--enable-nls'
+ [31;01m*[0m        phase-helpers.sh, line 669:  Called __helpers_die 'econf failed'
+ [31;01m*[0m   isolated-functions.sh, line  93:  Called die
+ [31;01m*[0m The specific snippet of code:
+ [31;01m*[0m   		die "$@"
+ [31;01m*[0m 
+ [31;01m*[0m If you need support, post the output of `emerge --info '=app-misc/hello-2.12.3::gentoo'`,
+ [31;01m*[0m the complete build log and the output of `emerge -pqv '=app-misc/hello-2.12.3::gentoo'`.
+ [31;01m*[0m The complete build log is located at '/var/tmp/portage/app-misc/hello-2.12.3/temp/build.log'.
+ [31;01m*[0m The ebuild environment file is located at '/var/tmp/portage/app-misc/hello-2.12.3/temp/environment'.
+ [31;01m*[0m Working directory: '/var/tmp/portage/app-misc/hello-2.12.3/work/hello-2.12.3'
+ [31;01m*[0m S: '/var/tmp/portage/app-misc/hello-2.12.3/work/hello-2.12.3'
+
+ * Messages for package app-misc/hello-2.12.3:
+
+ * ERROR: app-misc/hello-2.12.3::gentoo failed (configure phase):
+ *   econf failed
+ * Call stack:
+ *               ebuild.sh, line 143:  Called src_configure
+ *             environment, line 268:  Called econf '--enable-nls'
+ *        phase-helpers.sh, line 669:  Called __helpers_die 'econf failed'
+ *   isolated-functions.sh, line  93:  Called die
+ * The specific snippet of code:
+ *   		die "$@"
+ * If you need support, post the output of `emerge --info '=app-misc/hello-2.12.3::gentoo'`,
+ * the complete build log and the output of `emerge -pqv '=app-misc/hello-2.12.3::gentoo'`.
+ * The complete build log is located at '/var/tmp/portage/app-misc/hello-2.12.3/temp/build.log'.
+ * The ebuild environment file is located at '/var/tmp/portage/app-misc/hello-2.12.3/temp/environment'.
+ * Working directory: '/var/tmp/portage/app-misc/hello-2.12.3/work/hello-2.12.3'
+ * S: '/var/tmp/portage/app-misc/hello-2.12.3/work/hello-2.12.3'
+
+ * GNU info directory index is up-to-date.
+
+ * IMPORTANT: 19 news items need reading for repository 'gentoo'.
+ * Use eselect news read to view new items.
+

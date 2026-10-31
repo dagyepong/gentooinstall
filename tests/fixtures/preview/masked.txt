@@ -1,0 +1,20 @@
+[gentoo-x86-64-v3] Local copy of remote index is within TTL and will be used.
+[gentoo] Local copy of remote index is within TTL and will be used.
+
+These are the packages that would be merged, in order:
+
+Calculating dependencies ... done!
+Dependency resolution took 0.31 s (backtrack: 0/20).
+
+
+!!! All ebuilds that could satisfy "app-misc/abduco" have been masked.
+!!! One of the following masked packages is required to complete your request:
+- app-misc/abduco-0.6::gentoo (masked by: ~amd64 keyword)
+
+For more information, see the MASKED PACKAGES section in the emerge
+man page or refer to the Gentoo Handbook.
+
+
+ * IMPORTANT: 19 news items need reading for repository 'gentoo'.
+ * Use eselect news read to view new items.
+
