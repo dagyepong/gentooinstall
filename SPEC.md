@@ -92,7 +92,7 @@ Every question shows a default, has a help line, can be answered from a config f
 - [ ] **Root account.** Set a password, or lock root. Locking is allowed only when at least one admin user exists.
 - [ ] **Users.** One or more. Each has a username, a password (typed twice), an admin yes/no, and a shell (bash, zsh or fish). The shell question says that fish, as a login shell, doesn't read `/etc/profile.env`, so it misses the variables set through `/etc/env.d` (Gentoo bug 545830); the installer adds only the keyboard layout ones (section 18).
 - [ ] **Privilege tool.** sudo (default) or doas.
-- [ ] **Mirrors.** The Gentoo CDN `https://distfiles.gentoo.org` (default), the fastest https mirrors found by the ISO's `mirrorselect -S`, or a custom `https://` URL.
+- [ ] **Mirrors.** The Gentoo CDN `https://distfiles.gentoo.org` (default), the fastest https mirrors found by the ISO's `mirrorselect -S`, or a custom `https://` URL. Mirrors that netselect names by an IP address are dropped, since HTTPS to an IP fails; if none is left, the CDN is used.
 - [ ] **Binary packages.** On (default) or off. The x86-64-v3 repo is added automatically when the CPU supports it.
 - [ ] **Compiler settings.** `COMMON_FLAGS` default `-march=native -O2 -pipe`. MAKEOPTS and parallel emerge jobs are calculated, with an override.
 - [ ] **Tune for this machine.** Off by default when binary packages are on. On writes this CPU's `CPU_FLAGS_X86` and narrows `VIDEO_CARDS` to the detected GPUs, which makes some packages build from source. The compile preview shows how many.

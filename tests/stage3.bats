@@ -173,6 +173,20 @@ tar xpf $T/$NAME --xattrs-include=\\*.\\* --numeric-owner -C $T" ]
   [ "$(calls mirrorselect)" = "mirrorselect -S -s3 -b10 -o" ]
 }
 
+@test "fastest drops mirrors named by an IP address, and falls back to the CDN when none is left" {
+  CFG[mirror]=fastest
+  # Seen on a real install: netselect gave a mirror as one of its addresses, and TLS to it failed.
+  printf 'GENTOO_MIRRORS="https://104.18.6.32/gentoo/ \\\n    https://b.example/ \\\n    https://[2606:4700::6812:620]:443/gentoo"\n' > "$STUB_OUT_DIR/mirrorselect"
+  run in_step step_stage3
+  [ "$status" -eq 0 ]
+  grep -q " https://b.example/releases/amd64/autobuilds/latest-stage3-amd64-openrc.txt\$" "$STUB_LOG"
+  [ "$(stage3_mirrors)" = https://b.example/ ]
+  # A list saved before this fix, read on --resume.
+  state_set mirror.fastest 'https://104.18.6.32/gentoo/ https://10.0.0.1'
+  [ "$(stage3_mirrors)" = https://distfiles.gentoo.org ]
+  [ "$(calls mirrorselect | wc -l)" -eq 1 ]
+}
+
 @test "fastest fails on mirrorselect output without mirrors" {
   CFG[mirror]=fastest
   for out in 'no mirrors today' 'GENTOO_MIRRORS=""' $'GENTOO_MIRRORS="https://a.example/ \\\n    rm -rf /"' \

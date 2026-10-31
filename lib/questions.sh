@@ -752,7 +752,7 @@ _q_mirror() {
   if [[ $cur == https://* ]]; then cur=custom; fi
   v=$(ui_radio "Mirror" "" "$cur" \
     cdn "Gentoo's CDN. Recommended." "https://distfiles.gentoo.org, fast from most places." \
-    fastest "The fastest mirrors." "Found by mirrorselect on the live system, which takes a minute." \
+    fastest "The fastest mirrors." "Found by mirrorselect on the live system; can take several minutes." \
     custom "A mirror you type." "Any https:// Gentoo mirror.") || return 1
   if [[ $v != custom ]]; then
     _q_set mirror "$v"

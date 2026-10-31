@@ -32,11 +32,19 @@ step_stage3() {
 # with mirrorselect and keeps them in mirror.fastest, so later calls and a resume reuse them.
 # Called as $(...): call it as an assignment of its own, so a failed measurement stops the step.
 stage3_mirrors() {
+  local u out=''
+  local -a found=()
   case ${CFG[mirror]} in
     cdn) echo https://distfiles.gentoo.org ;;
     fastest)
       if [[ -z $(state_get mirror.fastest) ]]; then _stage3_measure; fi
-      state_get mirror.fastest
+      # The ISO's mirrorselect measures with netselect, which can name a mirror by one of its IP
+      # addresses. No mirror's certificate covers an IP, so HTTPS to one fails: drop them.
+      read -ra found <<< "$(state_get mirror.fastest)"
+      for u in "${found[@]}"; do
+        [[ $u =~ ^https://([0-9.]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?(/|$) ]] || out+=${out:+ }$u
+      done
+      echo "${out:-https://distfiles.gentoo.org}"
       ;;
     *) printf '%s\n' "${CFG[mirror]}" ;;
   esac
@@ -45,7 +53,7 @@ stage3_mirrors() {
 _stage3_measure() {
   local out u urls='' next="Retry, or stop and resume with mirror=cdn in a --config file."
   local -a words=()
-  info "Looking for the fastest mirrors with mirrorselect. This takes a minute."
+  info "Looking for the fastest mirrors with mirrorselect. This can take several minutes."
   # -S: https only. Without it some hosts come back as ftp, which serves binary packages poorly.
   out=$(mirrorselect -S -s3 -b10 -o) || die "mirrorselect failed. $next"
   # It prints GENTOO_MIRRORS="url \<newline>    url", the form make.conf takes.
