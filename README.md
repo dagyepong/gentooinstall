@@ -1,47 +1,67 @@
 # gentooinstall
 
-A guided installer for Gentoo Linux, in the spirit of Arch's `archinstall`. It asks its questions up front, then follows the [Gentoo AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64) step by step: disk, stage3, Portage, kernel, bootloader, users and an optional desktop: KDE Plasma, GNOME, Xfce, Budgie or Cinnamon, or one of the window managers i3, Sway, Hyprland, Niri, MangoWM, dwm and dwl. Budgie, Hyprland, Niri and MangoWM come from overlays that Gentoo doesn't review. It installs from the official binary package host wherever it can.
+A guided installer for Gentoo Linux, like Arch's `archinstall`. You answer a few questions in a menu, and it installs Gentoo the way the [AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64) does, using prebuilt packages wherever it can.
 
-It's plain bash and needs nothing beyond what the Gentoo minimal install ISO ships. `SPEC.md` says what it does; `ARCHITECTURE.md` says how the code fits together.
+**It erases the whole disk you pick.**
 
-Status: in development. Version 1 targets UEFI x86_64 machines and wipes the whole chosen disk.
+Status: early. Tested in virtual machines, not yet on real hardware.
 
-## Running it
+## What you need
 
-Boot the [Gentoo minimal install ISO](https://www.gentoo.org/downloads/) in UEFI mode, get online (`nmtui` or `net-setup` for Wi-Fi), then:
+- A 64-bit PC that boots in UEFI mode, with Secure Boot turned off
+- A USB stick with the [Gentoo minimal install ISO](https://www.gentoo.org/downloads/)
+- Internet: Ethernet, or Wi-Fi with WPA2
 
-```sh
-git clone <repository-url> gentooinstall
-cd gentooinstall
-./gentooinstall
-```
+## Install
 
-Every command is logged to `/tmp/gentooinstall/install.log`, and `/tmp/gentooinstall/replay.sh` collects them as a script you can read top to bottom. Passwords never appear in either. At the end both are copied to `/var/log/gentooinstall/` on the new system.
+1. Boot the USB stick in UEFI mode.
+2. Connect to the internet. Ethernet works on its own. For Wi-Fi, run `nmtui`.
+3. Download and start the installer:
 
-If a step fails, you can retry it, read the log, open a shell to fix things, skip it (optional steps only), or stop. A stopped install continues with `./gentooinstall --resume`, even after rebooting the ISO; the install state is kept on the new system's disk, so after a reboot clone the installer again and run that.
+   ```sh
+   git clone https://github.com/w0x7y/gentooinstall
+   cd gentooinstall
+   ./gentooinstall
+   ```
+
+4. Go through the menu, then start the install.
+5. When it's done, remove the USB stick and reboot. `first-steps.txt` in your home folder says what to do next.
+
+## What you can choose
+
+- OpenRC or systemd
+- ext4, xfs or btrfs, with optional disk encryption
+- systemd-boot, GRUB or Limine
+- A desktop: KDE Plasma, GNOME, Xfce, Cinnamon or Budgie
+- Or a window manager: i3, Sway, Hyprland, niri, MangoWM, dwm or dwl
+- Or no desktop at all
+
+Budgie, Hyprland, niri and MangoWM come from community overlays that Gentoo doesn't review, and they build from source.
+
+## If something goes wrong
+
+When a step fails, you can retry it, read the log, or open a shell to fix things.
+
+If you stop the install or reboot, run the installer again with `--resume` and it continues where it stopped. After a reboot, connect and download it again first (steps 2 and 3).
+
+Everything it runs is logged in `/tmp/gentooinstall/`, and copied to `/var/log/gentooinstall/` on the new system. Passwords never appear in the logs.
 
 ## Options
 
 | Option | What it does |
 |---|---|
-| `--config FILE` | Read answers from FILE, plain `key=value` lines (see `SPEC.md`). The file is parsed, never run. |
-| `--secrets FILE` | Read passwords from FILE: `luks_passphrase`, `root_password`, `user.<name>.password`, `wifi_psk`. It must be owned by root with mode 600. |
-| `--resume` | Continue an install that stopped. With `--config`, an answer can change only until the step that uses it has run. Can't be combined with `--dry-run`. |
-| `--dry-run` | Ask the questions, then print every command instead of running it. |
-| `--explain` | Before each step, say why it's done and link the Handbook section; show each command as it runs. |
-| `--yes` | Don't ask anything; take every answer from `--config` and every password from `--secrets`. Needs `--config`. A failed step stops the run with exit status 1 (resume it with `--resume`) instead of showing the error menu. |
-| `--no-tui` | Plain numbered prompts instead of `dialog` menus. Useful on serial consoles. |
-| `--log FILE` | Write the log to FILE instead of `/tmp/gentooinstall/install.log`. |
-| `--help`, `--version` | |
+| `--resume` | Continue a stopped install |
+| `--dry-run` | Ask the questions, then only print what it would do |
+| `--explain` | Explain each step as it runs |
+| `--no-tui` | Plain text prompts instead of menus |
 
-Exit status: 0 done, 1 failed, 2 bad usage or config, 130 stopped by the user.
+`./gentooinstall --help` lists them all, including unattended installs with `--config`, `--secrets` and `--yes`.
 
-## Tests
+## Development
 
-Tests run on a development machine, never on the ISO, and never as root. Every command that would change a system is replaced by a stub that only records its arguments, and the test mode refuses to run anything else.
+`SPEC.md` describes what the installer does, and `ARCHITECTURE.md` how the code fits together. Tests never run as root or change your system:
 
 ```sh
-tests/bootstrap.sh   # once: downloads shellcheck and bats-core into .tools/
-tests/run.sh         # shellcheck and every bats test
-tests/run.sh lib/core.sh tests/core.bats   # just these files
+tests/bootstrap.sh   # once: downloads shellcheck and bats
+tests/run.sh         # runs every test
 ```
