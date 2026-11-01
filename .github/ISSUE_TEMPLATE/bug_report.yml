@@ -1,0 +1,62 @@
+name: Bug report
+description: Something went wrong during the install or after it
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The log is what makes a bug fixable, so please attach it.
+
+        - During the install, it's in `/tmp/gentooinstall/` on the live system. That folder is gone after a reboot, so copy it to a second USB stick first:
+          ```
+          lsblk                      # find the stick, like sdb1
+          mount /dev/sdb1 /mnt; cp -r /tmp/gentooinstall /mnt/; umount /mnt
+          ```
+        - After a finished install, it's in `/var/log/gentooinstall/` on the new system.
+
+        Passwords never appear in the log or the config.
+  - type: input
+    id: version
+    attributes:
+      label: Installer version
+      description: "Run in the installer's folder: `./gentooinstall --version; git rev-parse --short HEAD`"
+      placeholder: gentooinstall 0.1.0, 6e78fbd
+    validations:
+      required: true
+  - type: dropdown
+    id: when
+    attributes:
+      label: When did it happen?
+      options:
+        - In the menus, before the install started
+        - During an install step
+        - At the first start of the new system
+        - Later, on the installed system
+        - With --resume or --rescue
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The step that failed, the error on screen, and what you expected instead. A photo of the screen helps too.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Drag `install.log` here. If the step built packages, `build-logs/` from the same folder helps too.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Your answers
+      description: Paste the `config` file from the same folder. It holds no passwords.
+      render: ini
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware
+      description: The machine's model, and anything unusual, like two GPUs, a second disk or Windows beside it.
