@@ -45,7 +45,8 @@ pci_dev() {
   [ "$(cat "$LIC")" = 'x11-drivers/nvidia-drivers NVIDIA-2025' ]
   [ ! -e "$MASK" ]
   run step_graphics_packages
-  [ "$output" = x11-drivers/nvidia-drivers ]
+  # Intel beside it makes it a hybrid laptop.
+  [ "$output" = $'x11-drivers/nvidia-drivers\nx11-misc/prime-run' ]
 }
 
 @test "tune narrows VIDEO_CARDS to a hybrid Intel and NVIDIA laptop" {
@@ -158,7 +159,8 @@ pci_dev() {
   [ "$(cat "$MASK")" = '>=x11-drivers/nvidia-drivers-581' ]
   [ -f "$LIC" ]
   run step_graphics_packages
-  [ "$output" = x11-drivers/nvidia-drivers ]
+  # Intel beside it makes it a hybrid laptop.
+  [ "$output" = $'x11-drivers/nvidia-drivers\nx11-misc/prime-run' ]
   CFG[nvidia_driver]=nouveau
   step_graphics_portage
   [ ! -e "$MASK" ]
@@ -205,4 +207,34 @@ pci_dev() {
   pci_dev 0000:00:0f.0 0x15ad 0x0405 0x030000 # SVGA II, VMware's GPU and VirtualBox's VMSVGA
   step_graphics_portage
   [ "$(cat "$VC")" = '*/* VIDEO_CARDS: -* vmware' ]
+}
+
+@test "a hybrid laptop with NVIDIA's driver gets prime-run and runtime power management" {
+  local opt=$GI_TARGET/etc/modprobe.d/nvidia-pm.conf rules=$GI_TARGET/etc/udev/rules.d/80-nvidia-pm.rules
+  HW[gpus]="intel nvidia"
+  cfg_defaults_apply
+  mkdir -p "$GI_TARGET/lib/modules/6.18.1/video"
+  touch "$GI_TARGET/lib/modules/6.18.1/video/nvidia.ko"
+  pci_dev 0000:01:00.0 0x10de 0x1f91 0x030200 # GTX 1650 Mobile, Turing
+  [ "$(step_graphics_packages | tr '\n' ' ')" = 'x11-drivers/nvidia-drivers x11-misc/prime-run ' ]
+  step_graphics
+  [ "$(cat "$opt")" = 'options nvidia NVreg_DynamicPowerManagement=0x02' ]
+  [ "$(grep -c 'ATTR{vendor}=="0x10de"' "$rules")" -eq 4 ]
+  # Ampere and later have it on by default, so only the udev rules.
+  rm "$opt" "$rules"
+  echo 0x2520 > "$GI_HOST_ROOT/sys/bus/pci/devices/0000:01:00.0/device" # RTX 3060 Mobile
+  step_graphics
+  [ ! -e "$opt" ]
+  [ -e "$rules" ]
+  # Pascal, on the 580 branch, has no runtime D3.
+  rm "$rules"
+  echo 0x1c8d > "$GI_HOST_ROOT/sys/bus/pci/devices/0000:01:00.0/device" # GTX 1050 Mobile
+  step_graphics
+  [ ! -e "$rules" ]
+  [[ $(step_graphics_packages) == *prime-run* ]]
+  # A desktop PC with only the NVIDIA GPU, or with nouveau, isn't hybrid.
+  HW[gpus]=nvidia
+  [ "$(step_graphics_packages)" = x11-drivers/nvidia-drivers ]
+  HW[gpus]="intel nvidia" CFG[nvidia_driver]=nouveau
+  [ -z "$(step_graphics_packages)" ]
 }

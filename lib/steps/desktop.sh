@@ -148,6 +148,7 @@ step_desktop_packages() {
   p+=(media-fonts/noto media-fonts/noto-emoji media-fonts/dejavu)
   if [[ ${CFG[fonts_cjk]} == yes ]]; then p+=(media-fonts/noto-cjk); fi
   if [[ ${CFG[browser]} != none ]]; then p+=("www-client/${CFG[browser]}"); fi
+  if [[ ${CFG[flatpak]} == yes ]]; then p+=(sys-apps/flatpak); fi
   if [[ " ${HW[gpus]:-} " == *" intel "* ]]; then p+=(media-libs/libva-intel-media-driver); fi
   printf '%s\n' "${p[@]}"
   _desktop_media_keys
@@ -183,6 +184,10 @@ step_desktop() {
   elif [[ -n $dm ]]; then
     service_enable "$dm"
     run_chroot systemctl set-default graphical.target
+  fi
+  # For every user; apps then come with flatpak install flathub NAME.
+  if [[ ${CFG[flatpak]} == yes ]]; then
+    run_chroot flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
   fi
   _desktop_wayland
 }

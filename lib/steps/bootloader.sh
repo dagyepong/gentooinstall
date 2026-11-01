@@ -18,6 +18,56 @@ step_bootloader_packages() {
     echo sys-apps/systemd
   fi
   echo sys-boot/efibootmgr
+  if [[ ${CFG[secure_boot]} == yes ]]; then printf '%s\n' sys-boot/shim sys-boot/mokutil app-crypt/sbsigntools; fi
+}
+
+# With Secure Boot, one key signs everything: Portage's secureboot flag signs the EFI programs as
+# they install (systemd-boot among them), modules-sign the kernel modules built here, like
+# NVIDIA's, and a kernel-install plugin each kernel copied to the ESP. gentoo-kernel-bin has no
+# secureboot flag, so the plugin is what signs it. shim, which Microsoft signed, trusts the key
+# once MokManager enrolled it.
+GI_SB_KEY=/etc/portage/secureboot.pem
+
+step_bootloader_portage() {
+  local f=/etc/kernel/install.d/91-sbsign.install v
+  if [[ ${CFG[secure_boot]} != yes ]]; then
+    if [[ -e $GI_TARGET$f ]]; then run_cmd rm -f -- "$GI_TARGET$f"; fi
+    return 0
+  fi
+  # Kept across reruns: the key MokManager enrolled must stay the one that signs.
+  if [[ ! -s $GI_TARGET$GI_SB_KEY ]]; then
+    run_chroot openssl req -new -nodes -utf8 -sha256 -x509 -days 36500 -subj "/CN=Secure Boot key of ${CFG[hostname]}" \
+      -outform PEM -out "$GI_SB_KEY" -keyout "$GI_SB_KEY"
+    run_chroot chmod 600 "$GI_SB_KEY"
+  fi
+  make_conf_use_add secureboot modules-sign
+  for v in SECUREBOOT_SIGN_KEY SECUREBOOT_SIGN_CERT MODULES_SIGN_KEY MODULES_SIGN_CERT; do
+    set_shell_var /etc/portage/make.conf "$v" "$GI_SB_KEY"
+  done
+  _bootloader_sbsign_plugin | write_file "$f" 0755
+}
+
+# After 90-loaderentry.install, which copies the kernel to the ESP.
+_bootloader_sbsign_plugin() {
+  cat << EOF
+#!/bin/bash
+# Written by gentooinstall. kernel-install runs this after every kernel install. It signs the
+# kernel on the ESP with $GI_SB_KEY, which shim trusts once MokManager enrolled it.
+key=$GI_SB_KEY
+EOF
+  cat << 'EOF'
+[[ $1 == add && $KERNEL_INSTALL_LAYOUT == bls ]] || exit 0
+k=$3/linux
+[[ -f $k ]] || exit 0
+# The world step may install the kernel before sbsigntools; the kernel step installs it again.
+if ! command -v sbsign > /dev/null; then
+  echo "91-sbsign.install: sbsign is missing, so $k isn't signed and won't start with Secure Boot on." >&2
+  exit 0
+fi
+if sbverify --cert "$key" "$k" > /dev/null 2>&1; then exit 0; fi
+# Signed beside it, flushed, then renamed, so a crash never leaves half a kernel.
+sbsign --key "$key" --cert "$key" --output "$k.signed" "$k" && sync -- "$k.signed" && mv -f -- "$k.signed" "$k"
+EOF
 }
 
 step_bootloader() {
@@ -29,6 +79,8 @@ step_bootloader() {
     _bootloader_efi run_chroot grub-install --target=x86_64-efi --efi-directory=/efi
     # The ESP is always this install's own, even beside another system, so no other loader is overwritten.
     run_chroot grub-install --target=x86_64-efi --efi-directory=/efi --removable
+    # GRUB finds root by itself, but not the swap file to resume from.
+    if [[ ${CFG[swap]} == hibernate ]]; then set_shell_var /etc/default/grub GRUB_CMDLINE_LINUX "$(kernel_resume_args)"; fi
     run_chroot grub-mkconfig -o /boot/grub/grub.cfg
     if ((!GI_DRY_RUN)) && ! grep -q '^[[:space:]]*linux[[:space:]]' "$GI_TARGET/boot/grub/grub.cfg"; then
       die "grub-mkconfig found no kernel; $GI_TARGET/boot/grub/grub.cfg has no linux line."
@@ -61,9 +113,51 @@ step_bootloader() {
       kernel_reinstall
       kernel_check
     }
-    _bootloader_nvram_entry '\EFI\systemd\systemd-bootx64.efi' 'Linux Boot Manager'
-    _bootloader_nvram_check systemd-bootx64.efi
+    if [[ ${CFG[secure_boot]} == yes ]]; then
+      _bootloader_shim
+      _bootloader_nvram_entry '\EFI\systemd\shimx64.efi' 'Gentoo (shim)' '\EFI\systemd\systemd-bootx64.efi'
+      _bootloader_nvram_check shimx64.efi
+    else
+      _bootloader_nvram_entry '\EFI\systemd\systemd-bootx64.efi' 'Linux Boot Manager'
+      _bootloader_nvram_check systemd-bootx64.efi
+    fi
   fi
+}
+
+# shim starts systemd-boot, named in the firmware entry; the fallback path, which has no entry,
+# gets shim with a copy of systemd-boot under the name shim loads by default. Each place gets
+# MokManager, which enrolls the key at the first start. Every kernel and systemd-boot must carry
+# the key's signature, or Secure Boot refuses them.
+_bootloader_shim() {
+  local d code
+  for d in systemd BOOT; do
+    run_chroot install -D -m 0644 /usr/share/shim/mmx64.efi "/efi/EFI/$d/mmx64.efi"
+  done
+  run_chroot install -m 0644 /usr/share/shim/BOOTX64.EFI /efi/EFI/systemd/shimx64.efi
+  run_chroot install -m 0644 /usr/share/shim/BOOTX64.EFI /efi/EFI/BOOT/BOOTX64.EFI
+  run_chroot install -m 0644 /efi/EFI/systemd/systemd-bootx64.efi /efi/EFI/BOOT/grubx64.efi
+  if ! _bootloader_signed; then
+    kernel_reinstall
+    _bootloader_signed || die "Not every kernel on the ESP is signed with $GI_SB_KEY, so Secure Boot would refuse it. See /var/log/installkernel.log in the new system."
+  fi
+  # Asked once: a second request would need the first one's code.
+  if [[ -z $(state_get secureboot.mok_code) ]]; then
+    run_chroot openssl x509 -in "$GI_SB_KEY" -outform DER -out /etc/portage/secureboot.der
+    # Digits only: MokManager reads the keyboard as US English whatever the layout.
+    printf -v code '%04d%04d' $((SRANDOM % 10000)) $((SRANDOM % 10000))
+    run_chroot_stdin "$code"$'\n'"$code" mokutil --import /etc/portage/secureboot.der
+    state_set secureboot.mok_code "$code"
+  fi
+}
+
+# True when systemd-boot and every kernel on the ESP carry the Secure Boot key's signature.
+_bootloader_signed() {
+  local f
+  ((!GI_DRY_RUN)) || return 0
+  for f in "$GI_TARGET"/efi/EFI/systemd/systemd-bootx64.efi "$GI_TARGET"/efi/*/*/linux; do
+    [[ -f $f ]] || continue
+    run_chroot sbverify --cert "$GI_SB_KEY" "/${f#"$GI_TARGET"/}" || return 1
+  done
 }
 
 # GRUB chainloads Windows' boot manager from its own ESP, found by its filesystem UUID. Without
@@ -112,8 +206,9 @@ _bootloader_efi() { # RUNNER CMD [ARGS...]
 # Creates the firmware boot entry for LOADER from the live system, unless one for it on this ESP
 # exists. Inside arch-chroot's PID namespace systemd sees a container, so bootctl skips EFI
 # variables, and with --variables=yes it writes an entry without the ESP's partition.
-_bootloader_nvram_entry() { # LOADER LABEL
+_bootloader_nvram_entry() { # LOADER LABEL [LOAD_OPTION]
   local uuid out part
+  local -a opt=()
   if ((!GI_DRY_RUN)); then
     uuid=$(findmnt -no PARTUUID -- "$GI_TARGET/efi")
     out=$(efibootmgr --verbose) || out=''
@@ -122,7 +217,9 @@ _bootloader_nvram_entry() { # LOADER LABEL
   fi
   # Partition 1 on a wiped disk; installs started before the disk step saved it are always that.
   part=$(state_get disk.esp_part)
-  _bootloader_efi run_cmd efibootmgr --create --disk "${CFG[disk]}" --part "${part:-1}" --loader "$1" --label "$2"
+  # shim takes the program it starts from the entry's load option.
+  if [[ -n ${3:-} ]]; then opt=(--unicode "$3"); fi
+  _bootloader_efi run_cmd efibootmgr --create --disk "${CFG[disk]}" --part "${part:-1}" --loader "$1" --label "$2" "${opt[@]}"
 }
 
 # Warns instead of failing: the fallback loader still boots when the firmware drops the entry.

@@ -30,10 +30,10 @@ Sources, checked 2026-10-30: the [Gentoo AMD64 Handbook](https://wiki.gentoo.org
   - [ ] v1: on BIOS, explain how to boot the USB in UEFI mode, then exit.
   - [ ] (later) BIOS installs.
 - [ ] Read `/sys/firmware/efi/fw_platform_size`. Some cheap laptops have 32-bit UEFI on a 64-bit CPU. v1 refuses with a message. (later) support it.
-- [ ] Detect the Secure Boot state. If it's on, warn that v1 does not sign the bootloader and the machine won't boot the new system until Secure Boot is turned off in firmware.
+- [ ] Detect the Secure Boot state. If it's on, warn that it stays on only with Secure Boot set to yes (systemd-boot), and otherwise must be turned off in the firmware.
 - [ ] Check that we're on the Gentoo minimal install ISO, the only supported live system. On anything else, warn that it's unsupported and ask before continuing.
 - [ ] Check every external tool the run will need before asking any question, and print the full list of missing ones. All of these ship on the minimal ISO: `dialog`, `lsblk`, `blkid`, `sfdisk`, `wipefs`, `udevadm`, `mkfs.vfat`, `mkfs.ext4`, `mkfs.xfs`, `mkfs.btrfs`, `cryptsetup`, `gpg`, `curl`, `tar`, `xz`, `arch-chroot`, `genfstab`, `cpuid2cpuflags`, `lspci`, `efibootmgr`, `chronyd`.
-- [ ] Parse options: `--config FILE`, `--secrets FILE`, `--resume`, `--dry-run`, `--explain`, `--yes`, `--no-tui`, `--log FILE`, `--help`, `--version`.
+- [ ] Parse options: `--config FILE`, `--secrets FILE`, `--resume`, `--rescue`, `--dry-run`, `--explain`, `--yes`, `--no-tui`, `--log FILE`, `--help`, `--version`.
 - [ ] Start the log file before anything else. Record the installer version, arguments, date, live ISO and detected hardware.
 - [ ] Ask for the console keymap first and apply it with `loadkeys`. Every password and passphrase typed later depends on it.
 
@@ -68,9 +68,10 @@ Every question has a help line, can be answered from a config file, and validate
   - [ ] (later) Install into free space next to an existing OS.
   - [ ] (later) Use partitions the user already made.
 - [ ] **Root filesystem.** ext4 (default), xfs or btrfs with subvolumes. (later) f2fs.
+- [ ] **/home.** On ext4 and xfs: on the root filesystem (default) or on a partition of its own (`home=partition`), with root's size in GiB (`root_size`) asked at once; /home gets the rest, at least 10 GiB. On btrfs /home is a subvolume already, and choosing btrfs puts /home back on root. The root size must hold the system (20 GiB, 40 with a desktop, plus RAM's size with hibernation), and the disk or free space the root, the ESP and 10 GiB more.
 - [ ] **Encryption.** None (default) or LUKS2 on root. Passphrase typed twice and never echoed, logged or saved.
   - [ ] TRIM through LUKS: on by default. It reveals which blocks are free, which is fine for a laptop. Explain this in the help line.
-- [ ] **Swap.** zram (default), swap file, or none.
+- [ ] **Swap.** zram (default), swap file, a swap file to hibernate to (`hibernate`), or none. Hibernation warns with Secure Boot on, whose kernel lockdown blocks it, and in free space mode needs RAM's size more room.
   - [ ] (later) Swap partition.
   - [ ] (later) Hibernation, through a swap file at least as large as RAM. A swap file inside the root filesystem also works with LUKS.
 - [ ] (later) **Separate /home partition.**
@@ -80,6 +81,7 @@ Every question has a help line, can be answered from a config file, and validate
 - [ ] **Bootloader.** systemd-boot (default on UEFI), GRUB or Limine.
   - [ ] (later) EFI stub, UKI.
 - [ ] **Kernel.** `gentoo-kernel-bin` (default, prebuilt) or `gentoo-kernel` (compiled locally, about an hour or more).
+- [ ] **Kernel version.** `lts` (default): Gentoo's stable dist-kernels are the long-term series. `latest` accepts the testing versions of the kernel, `virtual/dist-kernel`, `linux-firmware` and `nvidia-drivers` in `package.accept_keywords/kernel`, for hardware too new for the long-term kernel.
 - [ ] **GPU driver.** Chosen automatically from detection. For NVIDIA, ask: proprietary `nvidia-drivers` (default) or `nouveau`.
 - [ ] **Networking.** NetworkManager (default), dhcpcd for wired-only machines, or systemd-networkd on systemd.
 - [ ] **Keep the current Wi-Fi.** If the live session is on Wi-Fi and NetworkManager is chosen, offer to save that network so the new system connects on first boot. Default yes.
@@ -98,9 +100,12 @@ Every question has a help line, can be answered from a config file, and validate
 - [ ] **Compiler settings.** `COMMON_FLAGS` default `-march=native -O2 -pipe`. MAKEOPTS and parallel emerge jobs are calculated, with an override.
 - [ ] **Tune for this machine.** Off by default when binary packages are on. On writes this CPU's `CPU_FLAGS_X86` and narrows `VIDEO_CARDS` to the detected GPUs, which makes some packages build from source. The compile preview shows how many.
 - [ ] **Browser.** `firefox-bin` (default), Chromium, or none.
+- [ ] **Flatpak.** Off by default, asked only with a desktop. On installs `sys-apps/flatpak` (built from source; the binary host has its dependencies) and adds the Flathub remote system-wide with `flatpak remote-add --if-not-exists`, so apps like Steam install prebuilt after the first start. first-steps.txt shows a `flatpak install` example.
 - [ ] **Media keys.** Off by default, and asked only for Sway, Hyprland and Niri, whose default configs call programs nothing else installs for the brightness, player and Print keys (section 18). The help names them and how many packages they build from source, and for Sway and Hyprland says brightnessctl comes from GURU, which Gentoo doesn't review. It says the volume keys work either way, or with `audio=none` that they do nothing either way.
 - [ ] **Extra packages.** Picked in fzf from Gentoo's package list: Space marks a package, Enter confirms, and the current ones come first, marked. The search matches package names, exact substrings first by the shortest name. The ISO has neither fzf nor a package tree, so the first use downloads, into the run directory, fzf's static binary from its GitHub release, checked against a SHA-256 pinned in the installer, and `metadata/pkg_desc_index` from Gentoo's `gentoo-mirror/gentoo` repository. Ctrl+T switches to typing atoms, for versions, slots or overlay packages, starting from the ones picked; a failed download and `--no-tui` type them too. Checked in the compile preview (section 9), after the tree is synced.
 - [ ] **Extra services.** sshd (default off), fwupd (default on for laptops), zram (follows the swap answer).
+- [ ] **Printing.** Off by default. On: `net-print/cups` with `zeroconf` (a source build: the binary host's lacks it), `cups-filters` and avahi, so network printers show up; the desktop's printer tool (Plasma's print-manager, system-config-printer for the others, GNOME's settings have one); `cupsd` (OpenRC) or `cups` (systemd) and `avahi-daemon` started; admin users in `lpadmin`.
+- [ ] **Fingerprint login.** Asked on laptops, off by default. On: `sys-auth/fprintd` with `pam`, and `auth sufficient pam_fprintd.so` first in `/etc/pam.d/system-local-login`, which the console, LightDM and greetd logins use; GDM and Plasma's lock screen have their own. Fingers are added after the first start, in the desktop's user settings or with `fprintd-enroll`.
 - [ ] (later) **Overlays.** GURU and others through `eselect repository`.
 - [ ] (later) **Flatpak** with Flathub.
 - [ ] **Explain mode.** On or off.
@@ -127,7 +132,7 @@ Every question has a help line, can be answered from a config file, and validate
   - [ ] Root: rest of the disk, type "Linux root (x86-64)" per the Discoverable Partitions spec, label `root`.
   - [ ] (later) Swap partition: type "Linux swap", label `swap`, size from the Handbook swap table (Disks chapter).
   - [ ] (later) BIOS: GPT with a 1 MiB BIOS boot partition for GRUB, or MBR with a 1 GiB `/boot`.
-  - [ ] (later) Separate `/home`.
+  - [ ] With `home=partition`: root gets `root_size` GiB, and `gentooinstall-home` (type "Linux /home") the rest, in either disk mode. It gets the root's filesystem, labeled `home`, mounted at `/home` with `noatime`. With LUKS it's encrypted with the same passphrase and opened as `/dev/mapper/home`; the disk step puts a random key file on the encrypted root at `/etc/cryptsetup-keys.d/home.key` (mode 0400) and adds it to /home's LUKS, so the boot asks for the passphrase once: the initramfs unlocks only root (its `rd.luks.uuid`), and `/etc/crypttab` (systemd) or `/etc/conf.d/dmcrypt` with the `dmcrypt` boot service (OpenRC) unlocks /home with the key file. `--resume`, `--rescue` and the finish step open, mount and close it too.
 - [ ] Wait for device nodes (`udevadm settle`), then look up partition paths with `lsblk`. Never build them by string. `sda1`, `nvme0n1p1` and `mmcblk0p1` all differ.
 - [ ] LUKS2 when chosen:
   - [ ] `cryptsetup luksFormat --type luks2` on the root partition, passphrase on stdin.
@@ -141,11 +146,11 @@ Every question has a help line, can be answered from a config file, and validate
 - [ ] Mount with the options the installed system will use, since `genfstab` copies them into fstab later:
   - [ ] Root at `/mnt/gentoo` with `noatime`. btrfs subvolumes add `compress=zstd` and `nodiscard`, so genfstab can't copy the `discard=async` the kernel turns on for SSDs.
   - [ ] ESP at `/mnt/gentoo/efi` with `umask=0077`.
-- [ ] Swap file when chosen, sized like RAM up to 8 GiB:
+- [ ] Swap file when chosen, sized like RAM up to 8 GiB, or like all of RAM to hibernate to:
   - [ ] btrfs: `btrfs filesystem mkswapfile` in `/swap/swapfile`.
   - [ ] ext4 and xfs: allocate `/swapfile`, `chmod 600`, `mkswap`.
   - [ ] `swapon` it.
-- [ ] Record the root UUID, and the LUKS UUID if any, for the kernel command line.
+- [ ] Record the root UUID, and the LUKS UUID if any, for the kernel command line. To hibernate, also where the swap file starts, in 4 KiB pages: `btrfs inspect-internal map-swapfile -r` on btrfs, the first extent of `filefrag -v` scaled from the filesystem's block size on ext4 and xfs.
 
 ## 6. Stage3
 
@@ -247,6 +252,7 @@ Every question has a help line, can be answered from a config file, and validate
   - [ ] GRUB (`/boot/grub/grub.cfg` exists; the kernel step deletes one left from an earlier bootloader answer, since installkernel's `grub` flag writes it with each kernel): the kernels are installkernel's `/boot/vmlinuz-<version>` on OpenRC, or `/boot/kernel-<version>` through systemd's kernel-install on systemd. It removes `/boot/{vmlinuz,kernel,System.map,config}-<version>` and `initramfs-<version>.img`, with the `.old` copies a same-version reinstall leaves (GRUB lists them too), then runs `grub-mkconfig -o /boot/grub/grub.cfg` once if it removed anything, and only warns if that fails.
 - [ ] Kernel command line in `/etc/kernel/cmdline`. Create `/etc/cmdline.d/` and link `/etc/kernel/cmdline` to `/etc/cmdline.d/00-installkernel.conf`, as the Handbook does for systemd-boot.
   - [ ] `root=UUID=<filesystem uuid>`, plus `rd.luks.uuid=<luks uuid>` with LUKS. dracut names the mapping `luks-<uuid>`, so `/dev/mapper/root` wouldn't exist at boot.
+  - [ ] To hibernate: `resume=UUID=<root filesystem uuid> resume_offset=<swap file offset>`, and dracut's `resume` module. GRUB, which finds root itself, gets them in `GRUB_CMDLINE_LINUX` in `/etc/default/grub`.
   - [ ] `rootflags=subvol=@` on btrfs.
   - [ ] TRIM through LUKS when it's on: `rd.luks.allow-discards=<luks uuid>` on OpenRC, whose dracut unlocker ignores `rd.luks.options`, and `rd.luks.options=discard` on systemd.
   - [ ] (later) `resume=` and `resume_offset=` for hibernation to the swap file.
@@ -258,7 +264,7 @@ Every question has a help line, can be answered from a config file, and validate
 - [ ] After `world`, which may have installed the kernel before `cryptsetup`, `btrfs-progs` or the firmware, rebuild the initramfs with `emerge --config =<package>-<version>` for each installed `gentoo-kernel` and `gentoo-kernel-bin`: every one is in the boot menu, and with two slots installed (an LTS kernel in `packages`, or a newer one after a sync and a retry) `emerge --config` refuses a name without a version.
 - [ ] Check that the kernel and initramfs landed where the bootloader looks: the ESP for systemd-boot, `/boot` for GRUB, and for Limine the files the first entry of `/efi/limine.conf` names. With LUKS, check with `lsinitrd` that the initramfs can unlock the disk (`cryptsetup` on OpenRC, `systemd-cryptsetup` on systemd). Stop loudly if not.
 - [ ] (later) `gentoo-sources` with manual config or `modprobed-db`.
-- [ ] (later) Module signing and Secure Boot keys for `gentoo-kernel`. `gentoo-kernel-bin` already comes signed.
+- [ ] Secure Boot (`secure_boot=yes`): the portage step makes one key, `/etc/portage/secureboot.pem` (RSA, self-signed, kept across reruns), and points `SECUREBOOT_SIGN_KEY`/`_CERT` and `MODULES_SIGN_KEY`/`_CERT` at it with `USE="secureboot modules-sign"`, so Portage signs EFI programs (systemd-boot) and the kernel modules built here (NVIDIA's). gentoo-kernel-bin has no `secureboot` flag, so `/etc/kernel/install.d/91-sbsign.install` signs each kernel kernel-install copies to the ESP, unless it already carries the key's signature. Without sbsigntools yet it warns and lets the install go on; the kernel step installs every kernel again.
 
 ## 13. System configuration
 
@@ -300,6 +306,7 @@ Every question has a help line, can be answered from a config file, and validate
 - [ ] `app-admin/sudo` or `app-admin/doas`.
 - [ ] TRIM on SSDs: `systemctl enable fstrim.timer` on systemd, a weekly `fstrim --all` cron job on OpenRC.
 - [ ] zram when chosen: `sys-block/zram-init` on OpenRC, `sys-apps/zram-generator` on systemd. Size half of RAM, zstd compression.
+- [ ] Snapshots on btrfs: `/usr/local/sbin/snapshot [NOTE]` takes a read-only snapshot of `/` in `/.snapshots` (the `@snapshots` subvolume), named by the time, with the note beside it, and keeps the newest 10. `/etc/portage/postsync.d/50-snapshot` runs it after every `emerge --sync`, so there is one from before each update, and the finish step takes the first, of the fresh install. `/usr/local/sbin/rollback` lists them, and `rollback NAME` renames `@` to `@rollback-<time>` and makes a writable copy of the snapshot the new `@`, which the next start mounts. `/home`, the logs, the caches and the swap file are subvolumes of their own, so a rollback loses none of them. first-steps.txt says how, and to roll back before `emerge --depclean` when an update brought a new kernel, since the kernels sit on the ESP outside the snapshots.
 - [ ] A swap file on btrfs with OpenRC: `rc_before="!localmount"` and `rc_need="localmount"` in `/etc/conf.d/swap`, since the file is on the `@swap` subvolume that `localmount` mounts, and the swap service otherwise runs first.
 - [ ] sshd when chosen: enable the service, keep root login off.
 - [ ] (later) Optional extras: `app-portage/eix`, `sys-apps/plocate`, vim or neovim, git.
@@ -326,7 +333,7 @@ Every question has a help line, can be answered from a config file, and validate
 - [ ] Check `efibootmgr` lists the new entry first in `BootOrder`.
 - [ ] Make sure a fallback `\EFI\BOOT\BOOTX64.EFI` exists, because some laptops forget NVRAM boot entries. `bootctl install` writes it. GRUB needs a second `grub-install --removable`. Limine gets a second copy of its binary. The ESP is always the install's own, also in free space mode, so this never replaces another system's fallback.
 - [ ] (later) UKI and EFI stub booting.
-- [ ] (later) Secure Boot through shim and MOK, or through the user's own keys.
+- [ ] Secure Boot through shim and MOK, systemd-boot only, as the Handbook does: shim and MokManager (`sys-boot/shim`, Fedora's, Microsoft-signed) in `\EFI\systemd\`, the firmware entry for shim with `\EFI\systemd\systemd-bootx64.efi` as its load option, and shim, MokManager and a copy of systemd-boot as `grubx64.efi` at the fallback path. `sbverify` checks systemd-boot and every kernel on the ESP, with one more kernel install before failing. `mokutil --import` requests the key's enrollment once, with an 8-digit code (digits, since MokManager reads the keyboard as US English) kept in the state. The summary says how to enroll at the first start, with the code, and for AZERTY layouts to type the digits without Shift; first-steps.txt says how to request it again. Secure Boot then stays on with the stock keys, so Windows and BitLocker see no change. (later) The user's own keys in the firmware, GRUB and Limine.
 
 ## 17. Users and privileges
 
@@ -388,6 +395,7 @@ Every question has a help line, can be answered from a config file, and validate
 - [ ] Check Vulkan works on real hardware with `vulkaninfo`.
 - [ ] (later) PRIME render offload setup on hybrid laptops.
 - [ ] (later) Pre-GCN AMD (`radeon`) and legacy NVIDIA drivers.
+- [ ] Hybrid laptops (NVIDIA's driver beside Intel or AMD graphics): `x11-misc/prime-run` starts an app on the NVIDIA GPU, and first-steps.txt says how, with the Steam launch option. On Turing and newer (the current branch), runtime D3 as NVIDIA's README describes: `/etc/udev/rules.d/80-nvidia-pm.rules` turns on runtime power management for the GPU's VGA and 3D functions, and Turing, below device ID 0x2200, gets `NVreg_DynamicPowerManagement=0x02` in `/etc/modprobe.d/nvidia-pm.conf`; Ampere and later have it by default.
 
 ## 20. Audio, Bluetooth and laptop hardware
 
@@ -440,6 +448,7 @@ Every question has a help line, can be answered from a config file, and validate
 - [ ] Split the install into named steps, one per section above. Each step either completes or is safe to run again.
 - [ ] Save state after each step. Before the root filesystem exists, keep it in `/tmp`. After, keep it in `/mnt/gentoo/var/lib/gentooinstall/state`, so it survives a reboot of the live USB.
 - [ ] `--resume`: find a disk with a state file, ask for the LUKS passphrase if needed, remount the target filesystems, `swapon` the swap file, and continue at the first unfinished step.
+- [ ] `--rescue`: for a system that no longer starts. It asks only the keyboard layout, finds, unlocks and mounts the install the way `--resume` does (btrfs subvolumes and swap file included), opens a shell inside it with `arch-chroot`, and unmounts it and closes LUKS when that shell ends. No pre-flight, since it needs no network, and it leaves a stopped install's run files for `--resume`. It takes only `--no-tui` and `--log`.
 - [ ] Disk, partition and filesystem answers are locked once section 5 starts. Other answers can change on resume until the first step that acts on them has run, for example dropping a package that keeps failing before the package install finishes. A change to an answer a finished step used stops with a message naming both. When the compile preview already ran, it runs again for the new answers.
 - [ ] Never repeat a destructive step on resume.
 - [ ] Partial downloads resume instead of starting over.
@@ -514,7 +523,7 @@ Checked on the review screen. The install can't start until they pass.
 - [ ] Locking root requires at least one admin user.
 - [ ] A display manager requires a desktop.
 - [ ] A desktop without a network manager gets a warning.
-- [ ] Secure Boot on blocks the install in v1, with instructions.
+- [ ] Secure Boot on blocks the install unless `secure_boot=yes`, which needs systemd-boot.
 - [ ] (later) BIOS requires GRUB.
 - [ ] (later) Dual boot requires GRUB with os-prober.
 

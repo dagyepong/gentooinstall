@@ -378,6 +378,55 @@ ok_config() {
   [ "$status" -eq 1 ]
 }
 
+@test "rule: Secure Boot needs systemd-boot, and one that's on needs Secure Boot set to yes" {
+  ok_config
+  CFG[secure_boot]=yes CFG[bootloader]=grub
+  run cfg_check_rules
+  [ "$status" -eq 1 ]
+  [[ $output == *"error: Secure Boot needs systemd-boot in this version."* ]]
+  CFG[bootloader]=systemd-boot
+  run cfg_check_rules
+  [ "$status" -eq 0 ]
+  HW[secure_boot]=on CFG[secure_boot]=no
+  run cfg_check_rules
+  [ "$status" -eq 1 ]
+  [[ $output == *"error: Secure Boot is on. Set Secure Boot to yes in System"* ]]
+  CFG[secure_boot]=yes
+  run cfg_check_rules
+  [ "$status" -eq 0 ]
+}
+
+@test "rule: hibernation with Secure Boot warns that lockdown blocks it" {
+  ok_config
+  CFG[swap]=hibernate
+  run cfg_check_rules
+  [ "$status" -eq 0 ]
+  [[ $output != *Hibernation* ]]
+  CFG[secure_boot]=yes
+  run cfg_check_rules
+  [ "$status" -eq 0 ]
+  [[ $output == *"warn: Hibernation doesn't work while Secure Boot is on"* ]]
+}
+
+@test "rule: a /home partition needs ext4 or xfs, a root big enough, and room on the disk" {
+  ok_config
+  CFG[home]=partition CFG[root_size]=80 CFG[filesystem]=btrfs
+  run cfg_check_rules
+  [[ $output == *"error: On btrfs, /home is a subvolume of its own already"* ]]
+  CFG[filesystem]=ext4
+  hw_disk_size_bytes() { echo $((500 * 1024 ** 3)); }
+  run cfg_check_rules
+  [ "$status" -eq 0 ]
+  CFG[root_size]=30
+  run cfg_check_rules
+  [[ $output == *"error: The root filesystem needs at least 40 GiB with these answers, and root_size is 30."* ]]
+  CFG[root_size]=495
+  run cfg_check_rules
+  [[ $output == *"error: A 495 GiB root, its 1 GiB boot partition and at least 10 GiB for /home don't fit"* ]]
+  run cfg_validate root_size 8
+  [ "$status" -eq 1 ]
+}
+
 @test "rule: locking root needs an admin user" {
   ok_config
   CFG[root]=locked CFG[user.larry.admin]=no

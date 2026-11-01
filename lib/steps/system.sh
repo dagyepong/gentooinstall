@@ -19,11 +19,28 @@ step_system_portage() {
   # mount options, so genfstab drops it; TRIM runs on a schedule instead.
   fstab=$(awk 'BEGIN { OFS = "\t" } $1 !~ /^#/ && $3 == "btrfs" && $4 !~ /(^|,)(no)?discard(=|,|$)/ { $4 = $4 ",nodiscard" } 1' <<< "$fstab")
   printf '%s\n' "$fstab" | write_file /etc/fstab
+  if cfg_home_part && [[ ${CFG[encryption]} == luks2 ]]; then _system_home_crypt; fi
   if [[ -f $GI_TARGET/etc/machine-id ]]; then id=$(< "$GI_TARGET/etc/machine-id"); fi
   # Keep a valid ID: boot entries and their directory on the ESP are named after it.
   if [[ ! $id =~ ^[0-9a-f]{32}$ ]]; then
     id=$(< /proc/sys/kernel/random/uuid)
     printf '%s\n' "${id//-/}" | write_file /etc/machine-id 0444
+  fi
+}
+
+# The boot unlocks /home with the key file on the encrypted root. The initramfs unlocks only the
+# root its rd.luks.uuid names. OpenRC's dmcrypt service reads conf.d, systemd crypttab.
+_system_home_crypt() {
+  local uuid key=/etc/cryptsetup-keys.d/home.key
+  uuid=$(state_get disk.home_luks_uuid)
+  if is_systemd; then
+    printf 'home UUID=%s %s luks%s\n' "$uuid" "$key" "$(if [[ ${CFG[luks_discard]} == yes ]]; then echo ,discard; fi)" |
+      write_file /etc/crypttab
+  else
+    {
+      printf '# Written by gentooinstall: /home, unlocked with the key file on the encrypted root.\ntarget=home\nsource=UUID=%s\nkey=%s\n' "$uuid" "$key"
+      if [[ ${CFG[luks_discard]} == yes ]]; then echo "options='--allow-discards'"; fi
+    } | write_file /etc/conf.d/dmcrypt
   fi
 }
 
@@ -50,9 +67,10 @@ _system_fstab_problems() { # FSTAB
   done <<< "$1"
   if [[ ${CFG[filesystem]} == btrfs ]]; then
     want+=(/home /var/log /var/cache /.snapshots)
-    if [[ ${CFG[swap]} == file ]]; then want+=(/swap); fi
+    if cfg_swap_file; then want+=(/swap); fi
   fi
   if [[ -n $swapfile ]]; then want+=("$swapfile"); fi
+  if cfg_home_part; then want+=(/home); fi
   for mount in "${want[@]}"; do
     [[ -n ${seen[$mount]:-} ]] || echo "no entry for $mount"
   done
@@ -65,6 +83,8 @@ step_system() {
   if is_openrc; then set_shell_var /etc/conf.d/hostname hostname "$h"; fi
   # OpenRC needs the hostname in /etc/hosts.
   printf '127.0.0.1\t%s localhost\n::1\t\t%s localhost\n' "$h" "$h" | write_file /etc/hosts
+  # OpenRC's dmcrypt service unlocks /home with its key file before localmount mounts it.
+  if cfg_home_part && [[ ${CFG[encryption]} == luks2 ]] && is_openrc; then service_enable dmcrypt boot; fi
   # No systemd-firstboot, systemd-machine-id-setup or dbus-uuidgen: the hook above wrote the machine ID,
   # and the locale step and this one write every file they would.
   if is_systemd; then run_chroot systemctl preset-all --preset-mode=enable-only; fi

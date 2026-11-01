@@ -195,12 +195,12 @@ $code"
 
 @test "choosing LUKS2 asks for the passphrase right away; skipping it leaves a [!]" {
   q_run 'cfg_defaults_apply; questions_run' \
-    2 4 2 b \
-    4 '' 'pass phrase' 'pass phrase' '' \
+    2 5 2 b \
+    5 '' 'pass phrase' 'pass phrase' '' \
     b b y
   [ "$status" -eq 130 ]
   [[ $stderr == *"[!] LUKS passphrase not set"* ]]
-  [[ $stderr =~ 7\)\ (Done\ +)?Go\ back ]] # the TRIM through LUKS row appeared
+  [[ $stderr =~ 8\)\ (Done\ +)?Go\ back ]] # the TRIM through LUKS row appeared
   source "$STATE"
   [ "${CFG[encryption]}" = luks2 ]
   [ "${SECRET[luks_passphrase]}" = "pass phrase" ]
@@ -587,19 +587,19 @@ $code"
   echo 0x030000 > "$d/class"
   local code='source "$GI_HOME/lib/steps/graphics.sh"; HW[gpus]="intel nvidia"; cfg_defaults_apply; questions_run'
   echo 0x1180 > "$d/device" # GTX 680, Kepler
-  q_run "$code" 3 4 5 b y
+  q_run "$code" 3 6 7 b y
   [ "$status" -eq 130 ]
-  [[ $stderr == *"NVIDIA driver  nouveau (card too old for NVIDIA's driver)"* ]]
+  [[ $stderr =~ NVIDIA\ driver\ +nouveau\ \(card\ too\ old\ for\ NVIDIA\'s\ driver\) ]]
   [[ $stderr == *"This NVIDIA card is a Kepler model or older."* ]]
   source "$STATE"
   [ "${CFG[nvidia_driver]}" = proprietary ]
   echo 0x1b80 > "$d/device" # GTX 1080, Pascal
-  q_run "$code" 3 4 '?' '' 5 b y
-  [[ $stderr == *"NVIDIA driver  proprietary (580 series)"* ]]
+  q_run "$code" 3 6 '?' '' 7 b y
+  [[ $stderr =~ NVIDIA\ driver\ +proprietary\ \(580\ series\) ]]
   [[ $stderr == *"The 580 series, the last one for this card"* ]]
   echo 0x2684 > "$d/device" # RTX 4090, Ada
-  q_run "$code" 3 5 b y
-  [[ $stderr == *"NVIDIA driver  proprietary"* ]]
+  q_run "$code" 3 7 b y
+  [[ $stderr =~ NVIDIA\ driver\ +proprietary ]]
   [[ $stderr != *"580"* && $stderr != *"too old"* ]]
 }
 
@@ -656,7 +656,7 @@ $code"
 
 @test "Media keys: a row for sway, Hyprland and niri only, off by default, with GURU named where it adds it" {
   local code='source "$GI_HOME/lib/steps/hardware.sh"; cfg_defaults_apply; questions_run'
-  q_run "$code" 4 1 "$(desktop_choice sway)" 8 '?' 2 1 "$(desktop_choice i3)" b b y
+  q_run "$code" 4 1 "$(desktop_choice sway)" 9 '?' 2 1 "$(desktop_choice i3)" b b y
   [ "$status" -eq 130 ]
   # Plasma, the default, has none.
   local first=${stderr#*== Desktop ==}
@@ -673,10 +673,10 @@ $code"
   [[ $last != *"Media keys"* ]]
   source "$STATE"
   [ "${CFG[media_keys]}" = yes ]
-  q_run "$code" 4 1 "$(desktop_choice hyprland)" 8 '?' 2 b b y
+  q_run "$code" 4 1 "$(desktop_choice hyprland)" 9 '?' 2 b b y
   [[ $stderr == *"Hyprland's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source."* ]]
   [[ $stderr == *"Install them.: brightnessctl is from GURU, a user overlay that Gentoo doesn't review."* ]]
-  q_run "$code" 4 1 "$(desktop_choice niri)" 8 '?' 2 b b y
+  q_run "$code" 4 1 "$(desktop_choice niri)" 9 '?' 2 b b y
   [[ $stderr == *"Niri's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source."* ]]
   [[ $stderr == *"Install them.: Builds them from source."* ]]
 }
@@ -802,10 +802,26 @@ $code"
 
 @test "the hub's summaries read only questions that were asked: no thermald on AMD, no Keep Wi-Fi with dhcpcd" {
   q_run 'HW[cpu_vendor]=amd HW[wifi_ssid]=cafe; source "$GI_HOME/lib/steps/hardware.sh"; cfg_defaults_apply ask; CFG[keymap]=us
-    cfg_set network dhcpcd; cfg_set hostname laptop; cfg_set sshd no; cfg_set explain no; cfg_set fwupd yes; questions_run' b y
+    cfg_set network dhcpcd; cfg_set hostname laptop; cfg_set sshd no; cfg_set explain no; cfg_set fwupd yes
+    cfg_set printing no; cfg_set fingerprint no; questions_run' b y
   [ "$status" -eq 130 ]
   [[ $stderr =~ Network\ +dhcpcd,\ laptop ]]
   [[ $stderr =~ Options\ +explain\ mode\ off,\ fwupd ]]
+}
+
+@test "/home: a partition of its own on ext4 or xfs asks root's size at once; btrfs puts it back on root" {
+  q_run 'cfg_defaults_apply ask; CFG[keymap]=us; questions_run' 2 3 1 4 2 80 b b y
+  [ "$status" -eq 130 ]
+  [[ $stderr == *"These answers need at least 20 GiB"* ]]
+  [[ $stderr =~ Root\ size\ +80\ GiB ]]
+  source "$STATE"
+  [ "${CFG[home]}" = partition ]
+  [ "${CFG[root_size]}" = 80 ]
+  q_run 'cfg_defaults_apply ask; CFG[keymap]=us; cfg_set filesystem ext4; cfg_set home partition; cfg_set root_size 80; questions_run' \
+    2 3 3 b b y
+  source "$STATE"
+  [ "${CFG[filesystem]}" = btrfs ]
+  [ "${CFG[home]}" = root ]
 }
 
 @test "changing the desktop drops a login screen the new one doesn't offer" {

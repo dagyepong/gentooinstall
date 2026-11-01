@@ -188,3 +188,40 @@ sys-apps/fwupd" ]
   [[ $stderr != *PipeWire* ]]
   run ! grep -q alsasound "$STUB_LOG"
 }
+
+@test "printing: CUPS with network printer discovery, the desktop's printer tool, and its services" {
+  CFG[printing]=yes CFG[init]=openrc
+  cfg_defaults_apply
+  step_hardware_portage
+  grep -qx 'net-print/cups zeroconf' "$GI_TARGET/etc/portage/package.use/hardware"
+  [[ $(step_hardware_packages) == *$'net-print/cups\nnet-print/cups-filters\nnet-dns/avahi\nkde-plasma/print-manager'* ]]
+  CFG[desktop]=xfce
+  [[ $(step_hardware_packages) == *app-admin/system-config-printer* ]]
+  CFG[desktop]=gnome
+  [[ $(step_hardware_packages) != *print-manager* && $(step_hardware_packages) != *system-config-printer* ]]
+  step_hardware
+  grep -qxF "$(chroot_line rc-update add cupsd default)" "$STUB_LOG"
+  grep -qxF "$(chroot_line rc-update add avahi-daemon default)" "$STUB_LOG"
+  : > "$STUB_LOG"
+  CFG[init]=systemd
+  step_hardware
+  grep -qxF "$(chroot_line systemctl enable cups)" "$STUB_LOG"
+  CFG[printing]=no
+  step_hardware_portage
+  [ ! -e "$GI_TARGET/etc/portage/package.use/hardware" ]
+  [[ $(step_hardware_packages) != *cups* ]]
+}
+
+@test "fingerprint login: fprintd with pam, and the console login tries a finger first, once" {
+  local f=$GI_TARGET/etc/pam.d/system-local-login
+  CFG[fingerprint]=yes
+  cfg_defaults_apply
+  step_hardware_portage
+  grep -qx 'sys-auth/fprintd pam' "$GI_TARGET/etc/portage/package.use/hardware"
+  [[ $(step_hardware_packages) == *sys-auth/fprintd* ]]
+  mkdir -p "${f%/*}"
+  printf 'auth\t\tinclude\t\tsystem-login\naccount\t\tinclude\t\tsystem-login\n' > "$f"
+  step_hardware
+  step_hardware
+  [ "$(cat "$f")" = $'auth\t\tsufficient\tpam_fprintd.so\nauth\t\tinclude\t\tsystem-login\naccount\t\tinclude\t\tsystem-login' ]
+}

@@ -137,16 +137,23 @@ File format and rules are in `SPEC.md` under "Config file". Keys, values and def
 | `format` | `1` | `1` |
 | `keymap` | console keymap name | `us` |
 | `disk` | `/dev/disk/by-id/...`, or `/dev/disk/by-path/...` for a disk with no by-id link (a QEMU virtio disk without a serial) | required |
+| `home` | `root` `partition` | `root`. `partition` gives /home a partition of its own (ext4 and xfs); `cfg_home_part` |
+| `root_size` | GiB, 10 to 99999 | `80`. Root's size with `home=partition` |
 | `disk_mode` | `wipe` `free` | `wipe`. `free` installs into the largest free space of the disk's GPT; `hw_disk_free` reports it |
 | `filesystem` | `ext4` `xfs` `btrfs` | `ext4` |
 | `encryption` | `none` `luks2` | `none` |
 | `luks_discard` | `yes` `no` | `yes` |
-| `swap` | `zram` `file` `none` | `zram` |
+| `swap` | `zram` `file` `hibernate` `none` | `zram`. `hibernate` is a swap file as big as RAM; `cfg_swap_file` is true for both swap files |
 | `init` | `openrc` `systemd` | `openrc` |
 | `desktop` | `plasma` `gnome` `xfce` `budgie` `cinnamon` `i3` `sway` `hyprland` `niri` `mangowm` `dwm` `dwl` `none` | `plasma` |
 | `gnome_variant` | `light` `full` | `light` |
 | `display_manager` | `auto` `none` `tuigreet` `gtkgreet` `sddm` `gdm` `lightdm` | `auto` (SDDM for Plasma, GDM for GNOME, LightDM for Xfce, Budgie and Cinnamon, none for the window managers). `cfg_login_screens DESKTOP` lists the ones a desktop offers, `cfg_login_screen` resolves `auto` |
 | `bootloader` | `systemd-boot` `grub` `limine` | `systemd-boot` |
+| `kernel_version` | `lts` `latest` | `lts`. `latest` accepts the testing kernel, firmware and NVIDIA driver |
+| `printing` | `yes` `no` | `no`. CUPS with network printer discovery |
+| `fingerprint` | `yes` `no` | `no`. fprintd, and a finger at the console, LightDM and greetd logins; asked on laptops |
+| `flatpak` | `yes` `no` | `no`. Installs Flatpak and adds Flathub; asked only with a desktop |
+| `secure_boot` | `yes` `no` | `no`. `yes` signs systemd-boot and the kernels and boots through shim; needs systemd-boot |
 | `kernel` | `gentoo-kernel-bin` `gentoo-kernel` | `gentoo-kernel-bin` |
 | `nvidia_driver` | `proprietary` `nouveau` | `proprietary` |
 | `network` | `networkmanager` `dhcpcd` `networkd` | `networkmanager` |
@@ -190,7 +197,7 @@ Functions:
 - `cfg_validate KEY VALUE` prints `KEY: problem` on stdout and returns 1 when invalid, so callers can capture it with `$(...)`. It never echoes the value.
 - `cfg_load FILE` and `cfg_load_secrets FILE` parse files (never source them). They collect every error and report them together on stderr as `FILE: line N: ...`, then return 1. Duplicate and unknown keys are errors, and so are `user.<name>.*` keys for a name not in `users`. A CR before the newline is dropped, so files with Windows line endings work; every value is a single line. Secrets files must be root-owned with mode 600 (owned by the current user when `GI_TEST=1`); their error messages never contain values.
 - `cfg_save [FILE]` writes every set non-secret key, in table order, followed by the per-user keys for each user in `users`. FILE defaults to `$GI_RUN_DIR/config`. Returns 1, leaving no temp file, when it can't write the file. A step that changes answers (the preview step) changes `CFG` and calls `cfg_save` with no FILE; the runner reloads that file after every step.
-- `cfg_check_rules` prints `error: ...` and `warn: ...` lines on stdout and returns 1 when there's an error. It re-validates every key, requires `disk` and at least one user, checks that `lang` is one of `locales`, and applies the v1 combination rules in `SPEC.md`: LUKS needs systemd-boot or Limine, a desktop needs a 40 GiB disk (through `hw_disk_size_bytes`), systemd-networkd needs systemd, locking root needs an admin user, a desktop without NetworkManager warns, Secure Boot on is an error, less than 4 GiB of RAM (rounded to the nearest GiB, as `MemTotal` is a little under the installed RAM) warns with a desktop or `gentoo-kernel`, and a login screen other than `auto` must be one `cfg_login_screens` offers for the desktop (only `none` without one).
+- `cfg_check_rules` prints `error: ...` and `warn: ...` lines on stdout and returns 1 when there's an error. It re-validates every key, requires `disk` and at least one user, checks that `lang` is one of `locales`, and applies the v1 combination rules in `SPEC.md`: LUKS needs systemd-boot or Limine, a desktop needs a 40 GiB disk (through `hw_disk_size_bytes`), systemd-networkd needs systemd, locking root needs an admin user, a desktop without NetworkManager warns, Secure Boot on without `secure_boot=yes` is an error, `secure_boot=yes` needs systemd-boot, less than 4 GiB of RAM (rounded to the nearest GiB, as `MemTotal` is a little under the installed RAM) warns with a desktop or `gentoo-kernel`, and a login screen other than `auto` must be one `cfg_login_screens` offers for the desktop (only `none` without one).
 - `cfg_secrets_missing [STEP_IDS...]` prints the secret keys still needed by the given pending steps.
 - `cfg_secret_validate KEY VALUE` prints `KEY: problem` on stdout and returns 1 when VALUE can't be that secret, never echoing it: `wifi_psk` is empty (open network), 8 to 63 printable ASCII characters or 64 hex digits; the passwords and the LUKS passphrase must not be empty. `cfg_load_secrets` and the runner use it.
 - `cfg_lock KEY...`, `cfg_is_locked KEY`. Locked keys can't change after the disk step starts: `disk`, `filesystem`, `encryption`, `swap`, `init`.

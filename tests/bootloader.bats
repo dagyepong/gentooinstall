@@ -34,9 +34,100 @@ nvram() { # FIRST_ID LOADER_PATH
     "$1" "$2" '\EFI\gentoo\grubx64.efi' > "$STUB_OUT_DIR/efibootmgr"
 }
 
-@test "no portage hook: GRUB_PLATFORMS stays at the profile's efi-64 pc, which the binary host builds" {
+@test "the portage hook leaves GRUB_PLATFORMS at the profile's efi-64 pc, which the binary host builds" {
   CFG[bootloader]=grub
-  run ! declare -F step_bootloader_portage
+  step_bootloader_portage
+  run ! grep -rq GRUB_PLATFORMS "$GI_TARGET/etc/portage"
+}
+
+@test "Secure Boot's portage hook: one key, made once, signs EFI programs, modules and kernels" {
+  local key=$GI_TARGET/etc/portage/secureboot.pem plugin=$GI_TARGET/etc/kernel/install.d/91-sbsign.install
+  CFG[secure_boot]=yes CFG[hostname]=laptop
+  step_bootloader_portage
+  chroot_ran "openssl req -new -nodes -utf8 -sha256 -x509 -days 36500 -subj $(printf %q '/CN=Secure Boot key of laptop') -outform PEM -out /etc/portage/secureboot.pem -keyout /etc/portage/secureboot.pem"
+  chroot_ran 'chmod 600 /etc/portage/secureboot.pem'
+  grep -qx 'USE="secureboot modules-sign"' "$GI_TARGET/etc/portage/make.conf"
+  for v in SECUREBOOT_SIGN_KEY SECUREBOOT_SIGN_CERT MODULES_SIGN_KEY MODULES_SIGN_CERT; do
+    grep -qx "$v=\"/etc/portage/secureboot.pem\"" "$GI_TARGET/etc/portage/make.conf"
+  done
+  [ "$(stat -c %a "$plugin")" = 755 ]
+  shellcheck "$plugin"
+  # A key that exists is kept: MokManager may have enrolled it.
+  mkdir -p "${key%/*}"
+  echo key > "$key"
+  : > "$STUB_LOG"
+  step_bootloader_portage
+  run ! grep -q openssl "$STUB_LOG"
+  [ "$(step_bootloader_packages | tail -n 3 | tr '\n' ' ')" = 'sys-boot/shim sys-boot/mokutil app-crypt/sbsigntools ' ]
+  CFG[secure_boot]=no
+  step_bootloader_portage
+  [ ! -e "$plugin" ]
+  [ -e "$key" ]
+}
+
+@test "the signing plugin signs a kernel kernel-install put on the ESP, once, and only then" {
+  local bin=$BATS_TEST_TMPDIR/bin dir=$GI_TARGET/efi/abc/6.18.10
+  CFG[secure_boot]=yes
+  step_bootloader_portage
+  mkdir -p "$bin" "$dir"
+  # sbverify passes on a kernel sbsign wrote; sbsign marks its output.
+  printf '#!/bin/sh\ngrep -q signed "$3"\n' > "$bin/sbverify"
+  printf '#!/bin/sh\necho "sbsign $*" >> "$STUB_LOG"\n{ cat "$7"; echo signed; } > "$6"\n' > "$bin/sbsign"
+  chmod +x "$bin"/*
+  echo kernel > "$dir/linux"
+  plugin() { PATH=$bin:$PATH KERNEL_INSTALL_LAYOUT=${2:-bls} "$GI_TARGET/etc/kernel/install.d/91-sbsign.install" "$1" 6.18.10 "$dir"; }
+  plugin add
+  [ "$(cat "$dir/linux")" = $'kernel\nsigned' ]
+  [ ! -e "$dir/linux.signed" ]
+  [ "$(grep -c '^sbsign ' "$STUB_LOG")" -eq 1 ]
+  plugin add
+  [ "$(grep -c '^sbsign ' "$STUB_LOG")" -eq 1 ]
+  echo kernel > "$dir/linux"
+  plugin remove
+  plugin add uki
+  [ "$(cat "$dir/linux")" = kernel ]
+  # Without sbsigntools yet it says so and lets the kernel install go on; the kernel step signs it later.
+  rm "$bin/sbsign"
+  run plugin add
+  [ "$status" -eq 0 ]
+  [[ $output == *"sbsign is missing"* ]]
+}
+
+@test "systemd-boot with Secure Boot: shim and MokManager in place, the key requested once, an entry for shim" {
+  export STUB_STDIN_DIR=$BATS_TEST_TMPDIR/stdin
+  mkdir -p "$STUB_STDIN_DIR"
+  CFG[secure_boot]=yes
+  echo feba97b8-dac0 > "$STUB_OUT_DIR/findmnt"
+  run --separate-stderr errexit step_bootloader
+  [ "$status" -eq 0 ]
+  chroot_ran 'install -m 0644 /usr/share/shim/BOOTX64.EFI /efi/EFI/systemd/shimx64.efi'
+  chroot_ran 'install -m 0644 /usr/share/shim/BOOTX64.EFI /efi/EFI/BOOT/BOOTX64.EFI'
+  chroot_ran 'install -D -m 0644 /usr/share/shim/mmx64.efi /efi/EFI/BOOT/mmx64.efi'
+  chroot_ran 'install -m 0644 /efi/EFI/systemd/systemd-bootx64.efi /efi/EFI/BOOT/grubx64.efi'
+  chroot_ran 'sbverify --cert /etc/portage/secureboot.pem /efi/abc/6.18.1/linux'
+  chroot_ran 'mokutil --import /etc/portage/secureboot.der'
+  local code
+  code=$(state_get secureboot.mok_code)
+  [[ $code =~ ^[0-9]{8}$ ]]
+  # The code goes in twice on stdin, as mokutil asks, and never into the log or the record.
+  [[ $(cat "$STUB_STDIN_DIR/arch-chroot") == *"$code"$'\n'"$code"* ]]
+  run ! grep -rqF "$code" "$GI_LOG" "$GI_RUN_DIR/replay.sh"
+  grep -qxF "$(created '\EFI\systemd\shimx64.efi' 'Gentoo (shim)' | sed 's/^efibootmgr/&/') --unicode $(printf %q '\EFI\systemd\systemd-bootx64.efi')" "$STUB_LOG"
+  # A rerun keeps the first request, whose code the user already has.
+  : > "$STUB_LOG"
+  run --separate-stderr errexit step_bootloader
+  [ "$status" -eq 0 ]
+  run ! grep -q mokutil "$STUB_LOG"
+  [ "$(state_get secureboot.mok_code)" = "$code" ]
+}
+
+@test "systemd-boot with Secure Boot: an unsigned kernel is installed again once, then the step fails" {
+  CFG[secure_boot]=yes
+  _bootloader_signed() { return 1; }
+  run --separate-stderr errexit step_bootloader
+  [ "$status" -ne 0 ]
+  [[ $stderr == *"Not every kernel on the ESP is signed with /etc/portage/secureboot.pem"* ]]
+  chroot_ran 'emerge --config sys-kernel/gentoo-kernel-bin'
 }
 
 @test "packages per bootloader and init" {
@@ -137,6 +228,20 @@ created() { printf 'efibootmgr --create --disk /dev/disk/by-id/nvme-Disk_1 --par
   chroot_ran 'grub-install --target=x86_64-efi --efi-directory=/efi --removable'
   chroot_ran 'grub-mkconfig -o /boot/grub/grub.cfg'
   run ! grep -q bootctl "$STUB_LOG"
+}
+
+@test "GRUB with hibernation: the resume arguments go in /etc/default/grub before its config is made" {
+  CFG[bootloader]=grub CFG[swap]=hibernate
+  state_set disk.root_uuid ROOTUUID
+  state_set disk.resume_offset 34816
+  mkdir -p "$GI_TARGET/etc/default"
+  printf '#GRUB_CMDLINE_LINUX=""\nGRUB_DISTRIBUTOR="Gentoo"\n' > "$GI_TARGET/etc/default/grub"
+  printf 'menuentry Gentoo {\n\tlinux /vmlinuz-6.18.1 root=UUID=x ro\n}\n' > "$GI_TARGET/boot/grub/grub.cfg"
+  run --separate-stderr errexit step_bootloader
+  [ "$status" -eq 0 ]
+  [ "$(cat "$GI_TARGET/etc/default/grub")" = '#GRUB_CMDLINE_LINUX=""
+GRUB_DISTRIBUTOR="Gentoo"
+GRUB_CMDLINE_LINUX="resume=UUID=ROOTUUID resume_offset=34816"' ]
 }
 
 @test "beside Windows: GRUB gets a chainload entry before its config is made, systemd-boot a copy of its files" {

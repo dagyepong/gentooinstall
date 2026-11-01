@@ -97,6 +97,26 @@ gi() { "$TREE/gentooinstall" "$@"; }
   [ -z "$(ls -A "$GI_TARGET")" ]
 }
 
+@test "--rescue asks the layout, mounts the install, opens a shell in it and unmounts it after" {
+  echo '_finish_unmount() { echo "unmount encryption=${CFG[encryption]}" >> "$CALLS"; }' >> "$TREE/lib/fakeparts.sh"
+  mkdir -p "$GI_TARGET/var/lib/gentooinstall"
+  echo 'disk.swapfile=/swapfile' > "$GI_TARGET/var/lib/gentooinstall/state"
+  run --separate-stderr gi --rescue --no-tui < /dev/null
+  [ "$status" -eq 0 ]
+  # No preflight: the rescue needs no network. The cryptsetup stub reports the root mapping open.
+  [ "$(cat "$CALLS")" = $'keymap:ask\nresume_mount\nunmount encryption=luks2' ]
+  grep -qx "arch-chroot $GI_TARGET" "$STUB_LOG"
+  grep -qx 'disk.swapfile=/swapfile' "$GI_RUN_DIR/state"
+  [[ $stderr == *"this shell runs inside it"* ]]
+  # --yes alone stops earlier, since it needs --config.
+  for a in --resume --dry-run --explain "--config $BATS_TEST_TMPDIR/config" "--yes --config $BATS_TEST_TMPDIR/config"; do
+    # shellcheck disable=SC2086 # --config takes its file as a second word
+    run gi --rescue $a
+    [ "$status" -eq 2 ]
+    [[ $output == *"--rescue takes only --no-tui and --log"* ]]
+  done
+}
+
 @test "an unattended run executes every step and keeps secrets out of the record" {
   # Left by an earlier attempt in the same live session.
   mkdir -p "$GI_RUN_DIR/build-logs"

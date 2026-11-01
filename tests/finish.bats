@@ -6,7 +6,7 @@ bats_require_minimum_version 1.5.0
 setup() {
   load helpers
   gi_setup
-  gi_load core ui state config disk finish desktop hardware
+  gi_load core ui state config disk finish desktop hardware graphics
   state_set windows.esp none
   CFG[users]="larry alice"
   cfg_defaults_apply
@@ -121,6 +121,45 @@ x11-drivers/nvidia-drivers-595.104.02 source" ]
   grep -qF 'Windows is in the boot menu too. If it uses BitLocker, start it from the' "$f"
   grep -qF 'The hardware clock' "$f"
   grep -qF 'The systems that were on the disk before are still there.' "$f"
+}
+
+@test "btrfs: the fresh install gets the first snapshot, and first-steps.txt says how to roll back" {
+  CFG[users]=larry CFG[filesystem]=btrfs
+  fake_install
+  depclean_output
+  step_finish 2> /dev/null
+  grep -qxF "$(chroot_line "/usr/local/sbin/snapshot $(printf %q 'the fresh install')")" "$STUB_LOG"
+  grep -qF '  # rollback 2026-11-01_120000' "$GI_TARGET/home/larry/first-steps.txt"
+  grep -qF './gentooinstall --rescue' "$GI_TARGET/home/larry/first-steps.txt"
+}
+
+@test "first-steps.txt on a hybrid laptop says how to use the NVIDIA GPU, and Flatpak how to install apps" {
+  CFG[users]=larry CFG[desktop]=plasma CFG[flatpak]=yes
+  graphics_hybrid() { true; }
+  _finish_first_steps
+  grep -qxF '  $ prime-run APP' "$GI_TARGET/home/larry/first-steps.txt"
+  grep -qxF "In Steam, set a game's launch options to: prime-run %command%" "$GI_TARGET/home/larry/first-steps.txt"
+  grep -qxF '  $ flatpak install flathub com.spotify.Client' "$GI_TARGET/home/larry/first-steps.txt"
+  run ! grep -q fprintd-enroll "$GI_TARGET/home/larry/first-steps.txt"
+  CFG[fingerprint]=yes
+  _finish_first_steps
+  grep -qxF '  $ fprintd-enroll' "$GI_TARGET/home/larry/first-steps.txt"
+}
+
+@test "Secure Boot: the summary says how to enroll the key with its code, and first-steps how to ask again" {
+  CFG[users]=larry CFG[secure_boot]=yes CFG[keymap]=us
+  state_set secureboot.mok_code 12345678
+  run _finish_mok_hint
+  [[ $output == *"Enroll MOK, then Continue and Yes, type the code 12345678, then Reboot."* ]]
+  [[ $output != *"without Shift"* ]]
+  CFG[keymap]=fr-latin1
+  run _finish_mok_hint
+  [[ $output == *"type the digits on the top"*"row without Shift."* ]]
+  _finish_first_steps
+  grep -qF '# mokutil --import /etc/portage/secureboot.der' "$GI_TARGET/home/larry/first-steps.txt"
+  CFG[secure_boot]=no
+  run _finish_mok_hint
+  [ -z "$output" ]
 }
 
 @test "a summary with nothing to report says so" {

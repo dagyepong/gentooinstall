@@ -52,7 +52,7 @@ _pf_startup() {
     _pf_line ok "Booted in UEFI mode${HW[efi_bits]:+ (${HW[efi_bits]}-bit)}"
   fi
   case ${HW[secure_boot]} in
-    on) _pf_line warn "Secure Boot is on. This version can't sign the bootloader: turn Secure Boot off in the firmware setup. The install won't start until then." ;;
+    on) _pf_line warn "Secure Boot is on. Keep it on by setting Secure Boot to yes in System, which needs systemd-boot, or turn it off in the firmware setup." ;;
     off) _pf_line ok "Secure Boot is off" ;;
     *) _pf_line ok "The firmware reports no Secure Boot state" ;;
   esac

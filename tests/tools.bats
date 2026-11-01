@@ -6,7 +6,7 @@ bats_require_minimum_version 1.5.0
 setup() {
   load helpers
   gi_setup
-  gi_load core state tools
+  gi_load core config state tools
   CFG[init]=openrc CFG[filesystem]=ext4 CFG[encryption]=none CFG[swap]=zram CFG[sshd]=no CFG[privilege]=sudo CFG[binpkgs]=yes
   HW[ram_mib]=16000
 }
@@ -132,6 +132,81 @@ rc_need="localmount"' ]
   CFG[init]=systemd CFG[filesystem]=btrfs
   step step_tools
   [ ! -e "$GI_TARGET/etc/conf.d/swap" ]
+}
+
+@test "btrfs gets snapshot, rollback and a snapshot after every sync; other filesystems don't" {
+  local f
+  CFG[filesystem]=btrfs
+  step_tools
+  for f in /usr/local/sbin/snapshot /usr/local/sbin/rollback /etc/portage/postsync.d/50-snapshot; do
+    [ "$(stat -c %a "$GI_TARGET$f")" = 755 ]
+    shellcheck "$GI_TARGET$f"
+  done
+  rm -r "$GI_TARGET/usr/local" "$GI_TARGET/etc/portage/postsync.d"
+  CFG[filesystem]=ext4
+  step_tools
+  [ ! -e "$GI_TARGET/usr/local/sbin/snapshot" ]
+}
+
+# Runs one of the scripts with /.snapshots at $SNAP and fake btrfs, date, findmnt, mount and umount.
+snap_tool() { # SCRIPT ARG...
+  local bin=$BATS_TEST_TMPDIR/bin script=$BATS_TEST_TMPDIR/$1
+  mkdir -p "$bin"
+  printf '#!/bin/sh\necho "$NOW"\n' > "$bin/date"
+  # subvolume snapshot [-r] SRC DST copies; subvolume delete DIR removes.
+  cat > "$bin/btrfs" << 'EOF'
+#!/bin/bash
+echo "btrfs $*" >> "$STUB_LOG"
+case $2 in
+  snapshot) if [[ $3 == -r ]]; then shift; fi; if [[ $3 == / ]]; then mkdir -p "$4"; else cp -r "$3" "$4"; fi ;;
+  delete) rm -r "$3" ;;
+esac
+EOF
+  printf '#!/bin/sh\necho "/dev/mapper/root[/@snapshots]"\n' > "$bin/findmnt"
+  # The top-level subvolume holds @ and @snapshots, which here is $SNAP.
+  printf '#!/bin/sh\necho "mount $*" >> "$STUB_LOG"\nmkdir -p "$4/@"; ln -s "$SNAP" "$4/@snapshots"\n' > "$bin/mount"
+  printf '#!/bin/sh\necho "umount $*" >> "$STUB_LOG"\nrm "$1/@snapshots"; mv "$1"/* "$TOP"/\n' > "$bin/umount"
+  chmod +x "$bin"/*
+  _tools_${1}_script | sed "s|/\.snapshots|$SNAP|" > "$script"
+  shift
+  PATH=$bin:$PATH bash "$BATS_TEST_TMPDIR/${script##*/}" "$@"
+}
+
+@test "snapshot: a read-only snapshot of / with its note, and only the newest 10 are kept" {
+  export SNAP=$BATS_TEST_TMPDIR/snapshots NOW
+  local i
+  mkdir -p "$SNAP"
+  for i in 01 02 03 04 05 06 07 08 09 10; do mkdir "$SNAP/2026-10-$i""_120000"; done
+  NOW=2026-11-01_090000
+  run snap_tool snapshot "before the updates of an emerge --sync"
+  [ "$status" -eq 0 ]
+  [ "$output" = "Took the snapshot 2026-11-01_090000." ]
+  grep -qx "btrfs subvolume snapshot -r / $SNAP/2026-11-01_090000" "$STUB_LOG"
+  [ "$(cat "$SNAP/2026-11-01_090000.txt")" = "before the updates of an emerge --sync" ]
+  [ ! -e "$SNAP/2026-10-01_120000" ]
+  [ "$(find "$SNAP" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 10 ]
+}
+
+@test "rollback: lists the snapshots, refuses an unknown one, and makes a known one the next root" {
+  export SNAP=$BATS_TEST_TMPDIR/snapshots TOP=$BATS_TEST_TMPDIR/top NOW=2026-11-02_080000
+  mkdir -p "$SNAP/2026-11-01_090000" "$TOP"
+  echo "the fresh install" > "$SNAP/2026-11-01_090000.txt"
+  run snap_tool rollback
+  [ "$status" -eq 0 ]
+  [[ $output == *"  2026-11-01_090000  the fresh install"* ]]
+  run snap_tool rollback 2026-12-31_000000
+  [ "$status" -eq 1 ]
+  [[ $output == *"there's no snapshot 2026-12-31_000000"* ]]
+  run snap_tool rollback ../etc
+  [ "$status" -eq 1 ]
+  run snap_tool rollback 2026-11-01_090000
+  [ "$status" -eq 0 ]
+  grep -q '^mount -o subvolid=5 /dev/mapper/root ' "$STUB_LOG"
+  # The old root is kept under a new name, and @ is a writable copy of the snapshot.
+  [ -d "$TOP/@rollback-2026-11-02_080000" ]
+  [ -d "$TOP/@" ]
+  grep -q "^btrfs subvolume snapshot .*/@snapshots/2026-11-01_090000 .*/@\$" "$STUB_LOG"
+  [[ $output == *"The next start uses the snapshot 2026-11-01_090000."* ]]
 }
 
 @test "SSD on OpenRC: a weekly cron script runs fstrim" {

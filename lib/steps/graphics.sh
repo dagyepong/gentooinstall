@@ -14,13 +14,8 @@ _graphics_nvidia() {
 # work, since 595 and later build only the open ones, which need Turing or newer. Below 0x1340
 # (Kepler and older) no NVIDIA driver in the tree builds for current kernels.
 graphics_nvidia_branch() {
-  local d id min=0xffff
-  for d in "${GI_HOST_ROOT:-}"/sys/bus/pci/devices/*; do
-    [[ -r $d/vendor && -r $d/class && -r $d/device ]] || continue
-    [[ $(< "$d/vendor") == 0x10de && $(< "$d/class") == 0x03* ]] || continue
-    id=$(< "$d/device")
-    if [[ $id =~ ^0x[0-9a-f]{4}$ ]] && ((id < min)); then min=$id; fi
-  done
+  local min
+  min=$(_graphics_nvidia_id)
   if ((min < 0x1340)); then
     echo none
   elif ((min < 0x1e00)); then
@@ -28,6 +23,24 @@ graphics_nvidia_branch() {
   else
     echo current
   fi
+}
+
+# Prints the lowest device ID of the NVIDIA GPUs, 0xffff without one.
+_graphics_nvidia_id() {
+  local d id min=0xffff
+  for d in "${GI_HOST_ROOT:-}"/sys/bus/pci/devices/*; do
+    [[ -r $d/vendor && -r $d/class && -r $d/device ]] || continue
+    [[ $(< "$d/vendor") == 0x10de && $(< "$d/class") == 0x03* ]] || continue
+    id=$(< "$d/device")
+    if [[ $id =~ ^0x[0-9a-f]{4}$ ]] && ((id < min)); then min=$id; fi
+  done
+  printf '%s\n' "$min"
+}
+
+# NVIDIA's driver beside Intel or AMD graphics: a laptop's hybrid graphics, where apps run on the
+# other GPU and prime-run starts one on NVIDIA's.
+graphics_hybrid() {
+  _graphics_nvidia && [[ " ${HW[gpus]:-} " == *" intel "* || " ${HW[gpus]:-} " == *" amd "* ]]
 }
 
 # VMware's SVGA GPU, which VirtualBox's VMSVGA emulates too, has Mesa's vmware driver; QEMU's virtio GPU has virgl.
@@ -86,11 +99,32 @@ step_graphics_portage() {
 
 step_graphics_packages() {
   if _graphics_nvidia; then echo x11-drivers/nvidia-drivers; fi
+  if graphics_hybrid; then echo x11-misc/prime-run; fi
+}
+
+# Lets a hybrid laptop's NVIDIA GPU power off while no app uses it, as NVIDIA's README describes
+# under PCI-Express Runtime D3. Ampere and later have it on by default; Turing needs the option.
+# The udev rules turn on runtime power management for the GPU's functions, which some laptops don't.
+_graphics_rtd3() {
+  if (($(_graphics_nvidia_id) < 0x2200)); then
+    echo 'options nvidia NVreg_DynamicPowerManagement=0x02' | write_file /etc/modprobe.d/nvidia-pm.conf
+  fi
+  write_file /etc/udev/rules.d/80-nvidia-pm.rules << 'EOF'
+# Written by gentooinstall, from NVIDIA's README: runtime power management for the NVIDIA GPU's
+# VGA and 3D controller functions while its driver is bound.
+ACTION=="bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030000", TEST=="power/control", ATTR{power/control}="auto"
+ACTION=="bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030200", TEST=="power/control", ATTR{power/control}="auto"
+ACTION=="unbind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030000", TEST=="power/control", ATTR{power/control}="on"
+ACTION=="unbind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030200", TEST=="power/control", ATTR{power/control}="on"
+EOF
 }
 
 # A missing NVIDIA module means a black screen at the first boot, so stop here instead.
 step_graphics() {
-  if ! _graphics_nvidia || ((GI_DRY_RUN)); then return 0; fi
+  _graphics_nvidia || return 0
+  # Runtime D3 needs Turing or newer, which the current branch is for.
+  if graphics_hybrid && [[ $(graphics_nvidia_branch) == current ]]; then _graphics_rtd3; fi
+  ((!GI_DRY_RUN)) || return 0
   compgen -G "$GI_TARGET/lib/modules/*/video/nvidia.ko*" > /dev/null ||
     die "x11-drivers/nvidia-drivers is installed, but its kernel module isn't in /lib/modules/*/video/. Reinstall it with: emerge --oneshot x11-drivers/nvidia-drivers"
 }

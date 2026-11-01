@@ -33,6 +33,14 @@ step_kernel_portage() {
   run_cmd mkdir -p "$GI_TARGET/etc/cmdline.d"
   run_cmd ln -sfn ../kernel/cmdline "$GI_TARGET/etc/cmdline.d/00-installkernel.conf"
   _kernel_dracut_conf | write_file /etc/dracut.conf.d/gentooinstall.conf
+  # The stable kernels are the long-term series; the newest is a testing version, and with it the
+  # firmware and NVIDIA's driver that match it.
+  if [[ ${CFG[kernel_version]} == latest ]]; then
+    printf '%s ~amd64\n' sys-kernel/gentoo-kernel-bin sys-kernel/gentoo-kernel virtual/dist-kernel \
+      sys-kernel/linux-firmware x11-drivers/nvidia-drivers | portage_file package.accept_keywords kernel
+  elif [[ -e $GI_TARGET/etc/portage/package.accept_keywords/kernel ]]; then
+    run_cmd rm -f -- "$GI_TARGET/etc/portage/package.accept_keywords/kernel"
+  fi
   _kernel_limine_files
   _kernel_cleanup_files
 }
@@ -248,9 +256,19 @@ kernel_reinstall() {
   for d in "${atoms[@]}"; do emerge_run --config "$d" || return; done
 }
 
+# The swap file to resume from after hibernation: on the root filesystem, at the offset the disk
+# step found. Prints nothing without hibernation.
+kernel_resume_args() {
+  local off
+  [[ ${CFG[swap]} == hibernate ]] || return 0
+  off=$(state_get disk.resume_offset)
+  if [[ -z $off ]] && ((!GI_DRY_RUN)); then die "The disk step didn't record where the swap file starts."; fi
+  printf 'resume=UUID=%s resume_offset=%s\n' "$(state_get disk.root_uuid)" "$off"
+}
+
 kernel_cmdline() {
-  local root_uuid luks_uuid
-  local -a a=()
+  local root_uuid luks_uuid resume
+  local -a a=() r=()
   root_uuid=$(state_get disk.root_uuid)
   luks_uuid=$(state_get disk.luks_uuid)
   if [[ -z $root_uuid ]] && ((!GI_DRY_RUN)); then die "The disk step didn't record the root filesystem UUID."; fi
@@ -267,6 +285,9 @@ kernel_cmdline() {
   # The filesystem UUID works whatever name the initramfs gives the LUKS mapping (luks-<uuid> by default).
   a+=("root=UUID=$root_uuid")
   if [[ ${CFG[filesystem]} == btrfs ]]; then a+=(rootflags=subvol=@); fi
+  resume=$(kernel_resume_args) || return
+  read -ra r <<< "$resume"
+  a+=("${r[@]}")
   # No nvidia_drm.modeset=1: nvidia-drivers 580 sets it in modprobe.d and 595 and later default to it.
   a+=(rw)
   printf '%s\n' "${a[*]}"
@@ -282,6 +303,7 @@ _kernel_dracut_conf() {
   if [[ ${CFG[filesystem]} == btrfs ]]; then
     echo 'if command -v btrfs >/dev/null; then add_dracutmodules+=" btrfs "; fi'
   fi
+  if [[ ${CFG[swap]} == hibernate ]]; then echo 'add_dracutmodules+=" resume "'; fi
   # On systemd dracut reads /etc/vconsole.conf by itself.
   if is_openrc; then echo 'i18n_vars="/etc/conf.d/keymaps:keymap-KEYMAP,extended_keymaps-EXT_KEYMAPS"'; fi
 }

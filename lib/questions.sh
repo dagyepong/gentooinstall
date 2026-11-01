@@ -21,6 +21,8 @@ questions_keymap() {
   # On --resume the saved config's keymap stays the new system's; this one only unlocks and types.
   if ((${GI_RESUME:-0})); then
     text="Pick the keyboard layout you chose when this install started. The disk passphrase and any passwords still needed are typed with it."
+  elif ((${GI_RESCUE:-0})); then
+    text="Pick the keyboard layout you chose when you installed. The disk passphrase is typed with it, and the rescue shell uses it."
   fi
   until _q_keymap Quit "$text"; do _q_quit; done
 }
@@ -140,11 +142,15 @@ _q_summary() { # SECTION: one line for the hub
       if [[ ${CFG[disk_mode]} == free ]]; then extra=" free space"; fi
       printf '%s%s, %s' "$(_q_disk_name)" "$extra" "$(_q_layout)"
       ;;
-    System) _q_join "${CFG[init]}" "${CFG[kernel]}" "${CFG[bootloader]}" ;;
+    System)
+      if [[ ${CFG[kernel_version]} == latest ]]; then extra="newest kernel"; fi
+      _q_join "${CFG[init]}" "${CFG[kernel]}" "$extra" "${CFG[bootloader]}" "$(_q_on secure_boot "Secure Boot")"
+      ;;
     Desktop)
       # Part H's rules, so the hub says what the desktop and hardware steps will install.
       if [[ $audio == pipewire ]] && ! hardware_pipewire; then audio="ALSA only"; fi
       if [[ ${CFG[desktop]} != none ]]; then browser=${CFG[browser]#none}; fi
+      if [[ ${CFG[desktop]} != none ]]; then browser+=${browser:+, }$(_q_on flatpak Flatpak); fi
       _q_join "${CFG[desktop]/#none/console only}" "$audio" "$(_q_on bluetooth Bluetooth)" \
         "${CFG[power]#none}" "$browser"
       ;;
@@ -168,7 +174,7 @@ _q_summary() { # SECTION: one line for the hub
         "$(_q_on tune tuned)" "$extra"
       ;;
     Options) _q_join "explain mode $(if [[ ${CFG[explain]} == yes ]]; then echo on; else echo off; fi)" \
-      "$(_q_on fwupd fwupd)" "$(_q_on thermald thermald)" ;;
+      "$(_q_on fwupd fwupd)" "$(_q_on thermald thermald)" "$(_q_on printing printing)" "$(_q_on fingerprint fingerprint)" ;;
   esac
 }
 
@@ -216,6 +222,11 @@ _q_keys() { # SECTION: prints KEY<TAB>LABEL<TAB>HELP for each setting it shows
       _q_row disk_mode "Install to" "The whole disk, or the free space beside what's on it"
       _q_row disk Disk "The disk to install Gentoo on"
       _q_row filesystem Filesystem "The filesystem for the root partition"
+      # On btrfs /home is a subvolume of its own.
+      if [[ ${CFG[filesystem]:-} == ext4 || ${CFG[filesystem]:-} == xfs ]]; then
+        _q_row home /home "On the root filesystem, or on a partition of its own"
+        if cfg_home_part; then _q_row root_size "Root size" "The root filesystem's size; /home gets the rest"; fi
+      fi
       _q_row encryption Encryption "Encrypt the root partition with a passphrase"
       if [[ ${CFG[encryption]:-} == luks2 ]]; then
         _q_row luks_discard "TRIM through LUKS" "Let the SSD know which blocks are free"
@@ -225,7 +236,9 @@ _q_keys() { # SECTION: prints KEY<TAB>LABEL<TAB>HELP for each setting it shows
     System)
       _q_row init "Init system" "What starts the services at boot"
       _q_row kernel Kernel "A prebuilt kernel, or the same one compiled here"
+      _q_row kernel_version "Kernel version" "The long-term kernel, or the newest for very new hardware"
       _q_row bootloader Bootloader "What starts the kernel"
+      _q_row secure_boot "Secure Boot" "Keep Secure Boot on by signing the bootloader and kernels"
       if [[ " ${HW[gpus]:-} " == *" nvidia "* ]]; then
         _q_row nvidia_driver "NVIDIA driver" "The driver for the NVIDIA graphics card"
       fi
@@ -245,6 +258,7 @@ _q_keys() { # SECTION: prints KEY<TAB>LABEL<TAB>HELP for each setting it shows
       # step_desktop_packages installs neither without a desktop.
       if [[ ${CFG[desktop]:-none} != none ]]; then
         _q_row browser Browser "The web browser to install"
+        _q_row flatpak Flatpak "Apps from Flathub, like Steam or Spotify, without compiling"
         _q_row fonts_cjk "CJK fonts" "Fonts for Chinese, Japanese and Korean"
       fi
       if [[ -n $(_q_media_keys) ]]; then
@@ -300,6 +314,10 @@ _q_keys() { # SECTION: prints KEY<TAB>LABEL<TAB>HELP for each setting it shows
     Options)
       _q_row explain "Explain mode" "Explain each step and show each command"
       _q_row fwupd "Firmware updates" "Device firmware updates with fwupd"
+      _q_row printing Printing "Print to USB and network printers"
+      if [[ ${HW[laptop]:-} == yes ]]; then
+        _q_row fingerprint "Fingerprint login" "Log in with the laptop's fingerprint reader"
+      fi
       if [[ ${HW[cpu_vendor]:-} == intel ]]; then
         _q_row thermald thermald "Intel's thermal daemon"
       fi
@@ -396,6 +414,7 @@ _q_value() { # KEY: the current value as the menus show it
   if [[ -z $v ]]; then
     case $k in
       disk) v=$(_q_disk_label) ;;
+      root_size) v="${CFG[root_size]} GiB" ;;
       disk_mode) if [[ ${CFG[disk_mode]} == free ]]; then v="free space, keeping the partitions"; else v="the whole disk, erasing it"; fi ;;
       display_manager)
         v=$(_q_dm_name "$(cfg_login_screen)")
@@ -466,7 +485,7 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
       ;;
     disk) _q_disk ;;
     disk_mode)
-      _q_radio disk_mode "Install to" "Free space keeps the disk's partitions, so another system keeps working. If Windows uses BitLocker, have its recovery key ready: with Secure Boot off, Windows asks for it at its next start." "" \
+      _q_radio disk_mode "Install to" "Free space keeps the disk's partitions, so another system keeps working. If Windows uses BitLocker, turning Secure Boot off makes it ask for its recovery key: keep Secure Boot on (System section), or have the key ready." "" \
         wipe "The whole disk." "Erases everything on it." \
         free "Free space on the disk." "Keeps its partitions, like Windows. Shrink one from its own system first."
       ;;
@@ -474,7 +493,20 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
       _q_radio filesystem "Root filesystem" "" ext4 \
         ext4 "The standard Linux filesystem." "Mature and simple; the safe choice." \
         xfs "Fast with large files." "Can grow later but never shrink." \
-        btrfs "Snapshots and compression." "Uses subvolumes for /, /home, logs, cache and snapshots."
+        btrfs "Snapshots and compression." "Uses subvolumes for /, /home, logs, cache and snapshots." ||
+        return 1
+      # btrfs gives /home a subvolume instead.
+      if [[ ${CFG[filesystem]} == btrfs ]] && cfg_home_part; then cfg_set home root; fi
+      ;;
+    home)
+      _q_radio home "/home" "" root \
+        root "On the root filesystem." "One filesystem for everything." \
+        partition "On a partition of its own." "Root gets the size you set, /home the rest." ||
+        return 1
+      if cfg_home_part && [[ -z ${CFG[root_size]+x} ]]; then _q_edit root_size || true; fi
+      ;;
+    root_size)
+      _q_input root_size "Root size" "The root filesystem's size in GiB; /home gets the rest of the disk. These answers need at least $(cfg_root_min) GiB; more leaves room for updates and the package cache, like 80."
       ;;
     encryption)
       _q_radio encryption "Encryption" "" none \
@@ -494,6 +526,7 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
       _q_radio swap "Swap" "" zram \
         zram "Compressed swap in RAM." "Fast and needs no disk space; uses up to half of RAM." \
         file "A swap file on the root filesystem." "Sized like RAM, up to 8 GiB." \
+        hibernate "A swap file to hibernate to." "Sized like RAM, so the session can be saved to disk and the PC turned off." \
         none "No swap." "Programs get stopped when RAM runs out."
       ;;
     init)
@@ -511,11 +544,23 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
         gentoo-kernel-bin "Prebuilt distribution kernel." "Installs in minutes." \
         gentoo-kernel "The same kernel, compiled here." "Takes an hour or more to build."
       ;;
+    kernel_version)
+      _q_radio kernel_version "Kernel version" "" lts \
+        lts "The long-term kernel." "Gentoo's stable kernel; it gets fixes for years." \
+        latest "The newest kernel." "A testing version, for hardware too new for the long-term one."
+      ;;
     bootloader)
       _q_radio bootloader "Bootloader" "" systemd-boot \
         systemd-boot "A simple UEFI boot menu." "Works with encryption." \
         grub "The classic bootloader." "More features, but can't be used with encryption in this version." \
         limine "A small, fast UEFI boot menu." "Works with encryption. A testing package; building it adds 670 MB of LLVM."
+      ;;
+    secure_boot)
+      rec=no
+      if [[ ${HW[secure_boot]:-} == on ]]; then rec=yes; fi
+      _q_radio secure_boot "Secure Boot" "Yes keeps Secure Boot on: the installer makes a key, signs systemd-boot and every kernel with it, and starts them through shim, which Microsoft signed. At the first start a MokManager screen asks to enroll the key, with a code the install shows when it ends." "$rec" \
+        no "Turn it off." "Simplest. It must be off in the firmware setup to start the new system." \
+        yes "Keep it on." "Needs systemd-boot. A one-time code enrolls the key at the first start."
       ;;
     nvidia_driver)
       # Part H's detection, so the menu says what step_graphics_portage will do.
@@ -595,6 +640,11 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
         firefox-bin "Firefox, prebuilt by Mozilla." "Installs in seconds." \
         chromium "Chromium." "The open source base of Chrome; the compile preview shows if it builds here." \
         none "No browser." "Install one later if you like."
+      ;;
+    flatpak)
+      _q_radio flatpak "Flatpak" "Flatpak installs apps from Flathub, prebuilt and sandboxed, with nothing to compile: Steam, Discord, Spotify and many more. You install them after the first start, with flatpak install." no \
+        no "No Flatpak." "Install apps with emerge only." \
+        yes "Flatpak with Flathub." "flatpak builds from source, a few minutes; its apps then download prebuilt."
       ;;
     fonts_cjk)
       _q_radio fonts_cjk "CJK fonts" "" no \
@@ -720,6 +770,16 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
       _q_radio fwupd "Firmware updates" "" "$(_q_hw_yes laptop)" \
         yes "Install fwupd." "Updates laptop and device firmware from the LVFS." \
         no "No fwupd." "Update firmware some other way."
+      ;;
+    printing)
+      _q_radio printing "Printing" "CUPS, with network printers found by themselves, and the desktop's printer settings." no \
+        no "No printing." "Add CUPS later if you need it." \
+        yes "Set up printing." "CUPS builds from source, a few minutes, to find network printers."
+      ;;
+    fingerprint)
+      _q_radio fingerprint "Fingerprint login" "Installs fprintd. After the first start, add a finger in the desktop's user settings or with fprintd-enroll; the console and LightDM logins then take it too. The reader must be one libfprint supports." no \
+        no "No fingerprint login." "Passwords only." \
+        yes "Fingerprint login." "The password still works when the finger doesn't."
       ;;
     thermald)
       _q_radio thermald "thermald" "" no \
@@ -1099,12 +1159,14 @@ _q_free_check() { # prints error: lines; returns 1 on one
     echo "error: $name already has partitions from an earlier gentooinstall run. Delete them, or install to the whole disk."
     return 1
   fi
-  if [[ ${CFG[desktop]:-none} != none ]]; then min=40; fi
+  min=$(cfg_root_min)
+  # A /home partition gets at least 10 GiB beside root.
+  if cfg_home_part && [[ ${CFG[root_size]:-} =~ ^[0-9]+$ ]]; then min=$((CFG[root_size] + 10)); fi
   # 1 GiB more for the ESP, and 1 MiB for alignment.
   if ((n * ss < (min + 1) * 1024 ** 3 + 1024 ** 2)); then
     # GiB, as Windows' Disk Management counts its GB and MB.
     gib=$(((n * ss * 10 + 1024 ** 3 / 2) / 1024 ** 3))
-    echo "error: The largest free space on $name is $((gib / 10)).$((gib % 10)) GiB, and Gentoo needs $((min + 1)) GiB in one piece: $min GiB for the system$(if ((min == 20)); then echo " (40 GiB with a desktop)"; fi) and 1 GiB for its boot partition. Shrink a partition from its own system first, like Windows' Disk Management, or install to the whole disk."
+    echo "error: The largest free space on $name is $((gib / 10)).$((gib % 10)) GiB, and Gentoo needs $((min + 1)) GiB in one piece: $min GiB for the system$(if cfg_home_part; then echo " and /home"; elif [[ ${CFG[swap]:-} == hibernate ]]; then echo " with its hibernation swap file"; elif ((min == 20)); then echo " (40 GiB with a desktop)"; fi) and 1 GiB for its boot partition. Shrink a partition from its own system first, like Windows' Disk Management, or install to the whole disk."
     return 1
   fi
 }
@@ -1115,8 +1177,13 @@ _q_layout() {
   case ${CFG[swap]} in
     zram) swap='zram swap' ;;
     file) swap='swap file' ;;
+    hibernate) swap='swap file for hibernation' ;;
   esac
-  printf '%s root%s, %s' "${CFG[filesystem]}" "$luks" "$swap"
+  if cfg_home_part; then
+    printf '%s root of %s GiB + /home%s, %s' "${CFG[filesystem]}" "${CFG[root_size]}" "$luks" "$swap"
+  else
+    printf '%s root%s, %s' "${CFG[filesystem]}" "$luks" "$swap"
+  fi
 }
 
 _q_disk() {

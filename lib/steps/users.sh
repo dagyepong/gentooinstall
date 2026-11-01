@@ -27,6 +27,8 @@ step_users() {
     [[ -n $pw ]] || die "No password was given for user $u."
     want=users,audio,video,usb
     if [[ ${CFG[user.$u.admin]} == yes ]]; then want+=,wheel; fi
+    # cupsd lets lpadmin's members add printers.
+    if [[ ${CFG[user.$u.admin]} == yes && ${CFG[printing]} == yes ]]; then want+=,lpadmin; fi
     groups=$(dry_value "$want" _users_existing_groups "$want")
     case ${CFG[user.$u.shell]} in
       zsh) shell=/bin/zsh ;;

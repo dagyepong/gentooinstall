@@ -172,3 +172,30 @@ EOF
   [ ! -s "$STUB_LOG" ]
   [ -z "$(ls -A "$GI_TARGET/etc")" ]
 }
+
+@test "an encrypted /home partition is unlocked at boot with the key file: crypttab on systemd, dmcrypt on OpenRC" {
+  CFG[filesystem]=ext4 CFG[home]=partition CFG[encryption]=luks2 CFG[swap]=zram CFG[init]=systemd CFG[luks_discard]=no
+  state_set disk.home_luks_uuid hhhh
+  printf '%s\n' 'UUID=aaaa	/	ext4	rw,noatime	0 1' 'UUID=bbbb	/home	ext4	rw,noatime	0 2' \
+    'UUID=1234-ABCD	/efi	vfat	rw,relatime,fmask=0077,dmask=0077	0 2' > "$STUB_OUT_DIR/genfstab"
+  step_system_portage
+  [ "$(cat "$GI_TARGET/etc/crypttab")" = 'home UUID=hhhh /etc/cryptsetup-keys.d/home.key luks' ]
+  CFG[luks_discard]=yes
+  step_system_portage
+  [ "$(cat "$GI_TARGET/etc/crypttab")" = 'home UUID=hhhh /etc/cryptsetup-keys.d/home.key luks,discard' ]
+  CFG[init]=openrc
+  step_system_portage
+  [ "$(cat "$GI_TARGET/etc/conf.d/dmcrypt")" = "# Written by gentooinstall: /home, unlocked with the key file on the encrypted root.
+target=home
+source=UUID=hhhh
+key=/etc/cryptsetup-keys.d/home.key
+options='--allow-discards'" ]
+  step_system
+  chroot_ran 'rc-update add dmcrypt boot'
+  # Without /home in fstab the boot would leave it on root.
+  sed -i '/\/home/d' "$STUB_OUT_DIR/genfstab"
+  run step_system_portage
+  [ "$status" -ne 0 ]
+  [[ $output == *"no entry for /home"* ]]
+}
+

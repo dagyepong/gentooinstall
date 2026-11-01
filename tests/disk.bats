@@ -232,6 +232,67 @@ cryptsetup luksUUID ${DISK}2" ]
   [ "$(state_get disk.swapfile)" = /swap/swapfile ]
 }
 
+@test "a /home partition: root gets its size, both encrypted with one passphrase, and a key file unlocks /home at boot" {
+  CFG[encryption]=luks2 CFG[home]=partition CFG[root_size]=80
+  SECRET[luks_passphrase]='pass phrase'
+  export STUB_STDIN_DIR=$BATS_TEST_TMPDIR/stdin
+  mkdir -p "$STUB_STDIN_DIR"
+  TREE+=$'\n'"${DISK}3 part "
+  LABELS+=$'\n'"${DISK}3 gentooinstall-home"
+  run in_step step_disk < /dev/null
+  [ "$status" -eq 0 ]
+  [ "$(head -n 4 "$STUB_STDIN_DIR/sfdisk")" = "label: gpt
+size=1GiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=gentooinstall-esp
+size=80GiB, type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name=gentooinstall-root
+type=933AC7E1-2EB4-4F13-B844-0E14E2AEF915, name=gentooinstall-home" ]
+  [ "$(calls 'cryptsetup|mkfs\.[a-z0-9]+|mount')" = "cryptsetup luksFormat --type luks2 --batch-mode --key-file=- ${DISK}2
+cryptsetup open --key-file=- ${DISK}2 root
+cryptsetup luksFormat --type luks2 --batch-mode --key-file=- ${DISK}3
+cryptsetup open --key-file=- ${DISK}3 home
+mkfs.vfat -F 32 -n ESP ${DISK}1
+mkfs.ext4 -L home /dev/mapper/home
+mkfs.ext4 -L root /dev/mapper/root
+mount -o noatime /dev/mapper/root $T
+mount -o umask=0077 ${DISK}1 $T/efi
+mount -o noatime /dev/mapper/home $T/home
+cryptsetup luksAddKey --key-file=- ${DISK}3 $T/etc/cryptsetup-keys.d/home.key
+cryptsetup luksUUID ${DISK}3
+cryptsetup luksUUID ${DISK}2" ]
+  [ "$(cat "$STUB_STDIN_DIR/cryptsetup")" = 'pass phrasepass phrasepass phrasepass phrasepass phrase' ]
+  local key=$T/etc/cryptsetup-keys.d/home.key
+  [ "$(stat -c %a "$key")" = 400 ]
+  [[ $(cat "$key") =~ ^[A-Za-z0-9+/]{64}$ ]]
+  run ! grep -rqF "$(cat "$key")" "$GI_LOG" "$GI_RUN_DIR/replay.sh" "$STUB_LOG"
+  [ "$(state_get disk.home_luks_uuid)" = uuid-luks ]
+  # A retry after the key was added doesn't add another.
+  : > "$STUB_LOG"
+  run in_step step_disk < /dev/null
+  [ "$status" -eq 0 ]
+  run ! grep -q luksAddKey "$STUB_LOG"
+}
+
+@test "a /home partition in free space: root gets its size, /home the rest" {
+  CFG[disk_mode]=free CFG[home]=partition CFG[root_size]=40
+  export STUB_STDIN_DIR=$BATS_TEST_TMPDIR/stdin
+  mkdir -p "$STUB_STDIN_DIR"
+  hw_disk_free() { echo "gpt 2048 200000000 512"; }
+  LABELS="${DISK}5 gentooinstall-esp"$'\n'"${DISK}6 gentooinstall-root"$'\n'"${DISK}7 gentooinstall-home"
+  run in_step step_disk
+  [ "$status" -eq 0 ]
+  [ "$(cat "$STUB_STDIN_DIR/sfdisk")" = "start=2048, size=2097152, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=gentooinstall-esp
+start=2099200, size=83886080, type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name=gentooinstall-root
+start=85985280, size=114016256, type=933AC7E1-2EB4-4F13-B844-0E14E2AEF915, name=gentooinstall-home" ]
+  grep -qx "mount -o noatime ${DISK}7 $T/home" "$STUB_LOG"
+  # Without 10 GiB left for /home it stops before writing.
+  rm -f "$GI_RUN_DIR/state" "$BATS_TEST_TMPDIR/mounted"
+  : > "$STUB_LOG"
+  CFG[root_size]=90
+  run in_step step_disk
+  [ "$status" -ne 0 ]
+  [[ $output == *"has no room for a 90 GiB root and 10 GiB for /home"* ]]
+  run ! grep -q sfdisk "$STUB_LOG"
+}
+
 @test "btrfs without a swap file has no @swap subvolume" {
   CFG[filesystem]=btrfs CFG[swap]=zram
   run in_step step_disk
@@ -286,6 +347,37 @@ swapon $T/swapfile" ]
   run in_step step_disk
   [ "$status" -eq 0 ]
   [ "$(calls fallocate)" = "fallocate -l 8192MiB $T/swapfile" ]
+}
+
+@test "hibernation: the swap file is as big as RAM, and where it starts is recorded for resume" {
+  CFG[swap]=hibernate HW[ram_mib]=65536
+  # filefrag -v as e2fsprogs 1.47 prints it, for 1 KiB blocks.
+  filefrag() {
+    printf '%s\n' 'Filesystem type is: ef53' "File size of $1 is 68719476736 (67108864 blocks of 1024 bytes)" \
+      ' ext:     logical_offset:        physical_offset: length:   expected: flags:' \
+      '   0:        0..   32767:     139264..    172031:  32768:            ' \
+      '   1:    32768..   65535:     172032..    204799:  32768:            '
+  }
+  run in_step step_disk
+  [ "$status" -eq 0 ]
+  [ "$(calls fallocate)" = "fallocate -l 65536MiB $T/swapfile" ]
+  [ "$(state_get disk.resume_offset)" = 34816 ]
+  # btrfs says it in pages itself.
+  rm -f "$GI_RUN_DIR/state" "$BATS_TEST_TMPDIR/mounted" "$STUB_OUT_DIR/swapon"
+  CFG[filesystem]=btrfs
+  echo 198313 > "$STUB_OUT_DIR/btrfs"
+  run in_step step_disk
+  [ "$status" -eq 0 ]
+  grep -qx "btrfs inspect-internal map-swapfile -r $T/swap/swapfile" "$STUB_LOG"
+  grep -qx "btrfs subvolume create $T/@swap" "$STUB_LOG"
+  [ "$(state_get disk.resume_offset)" = 198313 ]
+  # A swap file filefrag can't place stops the step.
+  rm -f "$GI_RUN_DIR/state" "$BATS_TEST_TMPDIR/mounted" "$STUB_OUT_DIR/swapon"
+  CFG[filesystem]=ext4
+  filefrag() { return 1; }
+  run in_step step_disk
+  [ "$status" -ne 0 ]
+  [[ $output == *"Couldn't find where /swapfile starts on the disk"* ]]
 }
 
 @test "an active swap file is left alone" {
@@ -549,6 +641,29 @@ mount -o noatime\,compress=zstd\,nodiscard\,subvol=@swap /dev/mapper/root $T/swa
 swapon --show=NAME --noheadings --raw
 swapon $T/swap/swapfile" ]
   run ! grep -q secret "$GI_LOG" "$STUB_LOG"
+}
+
+@test "resume finds /home beside root, unlocks it with the same passphrase and mounts it" {
+  resume_setup
+  ALL+=$'\n'"${DISK}3 $DISK gentooinstall-home"
+  GI_YES=1 SECRET[luks_passphrase]=secret
+  blkid() { case ${!#} in "${DISK}2") echo crypto_LUKS ;; /dev/mapper/root) echo ext4 ;; esac; }
+  # Each mapping is open once the stub opened it.
+  cryptsetup() {
+    if [[ $1 == status ]]; then
+      [[ -f $BATS_TEST_TMPDIR/$2-open ]]
+      return
+    fi
+    command cryptsetup "$@" || return
+    if [[ $1 == open ]]; then touch "$BATS_TEST_TMPDIR/${!#}-open"; fi
+  }
+  run in_step disk_resume_mount
+  [ "$status" -eq 0 ]
+  [ "$(calls 'mount|cryptsetup|swapon')" = "cryptsetup open --key-file=- ${DISK}2 root
+cryptsetup open --key-file=- ${DISK}3 home
+mount -o noatime /dev/mapper/root $T
+mount -o umask=0077 ${DISK}1 $T/efi
+mount -o noatime /dev/mapper/home $T/home" ]
 }
 
 @test "resume asks for the LUKS passphrase once, and again after an empty answer" {

@@ -62,6 +62,19 @@ media-fonts/dejavu" ]
   [ -z "$output" ]
 }
 
+@test "Flatpak: the package and the Flathub remote for every user, only with a desktop" {
+  CFG[flatpak]=yes CFG[init]=systemd CFG[display_manager]=none
+  cfg_defaults_apply
+  [[ $(step_desktop_packages) == *$'\nsys-apps/flatpak'* ]]
+  step_desktop
+  grep -qxF "$(chroot_line flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo)" "$STUB_LOG"
+  : > "$STUB_LOG"
+  CFG[desktop]=none
+  step_desktop
+  [ -z "$(step_desktop_packages)" ]
+  run ! grep -q flatpak "$STUB_LOG"
+}
+
 @test "Plasma without a display manager turns off plasma-meta's display-manager flag" {
   CFG[display_manager]=none
   cfg_defaults_apply

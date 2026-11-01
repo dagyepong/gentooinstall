@@ -1,9 +1,9 @@
 # shellcheck shell=bash
 # Config: key schema, defaults, validators, load and save, secrets, combination rules.
 
-GI_CFG_KEYS=(format keymap disk disk_mode filesystem encryption luks_discard swap init desktop
-  gnome_variant display_manager bootloader kernel nvidia_driver network keep_wifi wifi_ssid
-  audio bluetooth power thermald fwupd sshd hostname timezone locales lang root users
+GI_CFG_KEYS=(format keymap disk disk_mode filesystem home root_size encryption luks_discard swap init desktop
+  gnome_variant display_manager bootloader secure_boot kernel kernel_version nvidia_driver network keep_wifi wifi_ssid
+  audio bluetooth power thermald fwupd printing fingerprint sshd flatpak hostname timezone locales lang root users
   privilege mirror binpkgs cflags makeopts emerge_jobs tune browser fonts_cjk media_keys packages explain)
 declare -gA GI_CFG_LOCKED=()
 
@@ -68,14 +68,17 @@ _cfg_check() { # KEY VALUE; prints the problem and returns 1
       ;;
     disk_mode) _cfg_enum "$v" wipe free ;;
     filesystem) _cfg_enum "$v" ext4 xfs btrfs ;;
+    home) _cfg_enum "$v" root partition ;;
+    root_size) _cfg_re "$v" '^[1-9][0-9]{1,4}$' 'must be a size in GiB, like 80' ;;
     encryption) _cfg_enum "$v" none luks2 ;;
-    swap) _cfg_enum "$v" zram file none ;;
+    swap) _cfg_enum "$v" zram file hibernate none ;;
     init) _cfg_enum "$v" openrc systemd ;;
     desktop) _cfg_enum "$v" plasma gnome xfce budgie cinnamon i3 sway hyprland niri mangowm dwm dwl none ;;
     gnome_variant) _cfg_enum "$v" light full ;;
     display_manager) _cfg_enum "$v" auto none tuigreet gtkgreet sddm gdm lightdm ;;
     bootloader) _cfg_enum "$v" systemd-boot grub limine ;;
     kernel) _cfg_enum "$v" gentoo-kernel-bin gentoo-kernel ;;
+    kernel_version) _cfg_enum "$v" lts latest ;;
     nvidia_driver) _cfg_enum "$v" proprietary nouveau ;;
     network) _cfg_enum "$v" networkmanager dhcpcd networkd ;;
     audio) _cfg_enum "$v" pipewire none ;;
@@ -83,7 +86,7 @@ _cfg_check() { # KEY VALUE; prints the problem and returns 1
     root) _cfg_enum "$v" password locked ;;
     privilege) _cfg_enum "$v" sudo doas ;;
     browser) _cfg_enum "$v" firefox-bin chromium none ;;
-    luks_discard | keep_wifi | bluetooth | thermald | fwupd | sshd | binpkgs | tune | fonts_cjk | media_keys | explain)
+    luks_discard | keep_wifi | bluetooth | thermald | fwupd | sshd | binpkgs | tune | fonts_cjk | media_keys | explain | secure_boot | flatpak | printing | fingerprint)
       _cfg_enum "$v" yes no
       ;;
     wifi_ssid)
@@ -190,6 +193,20 @@ _cfg_atom_re() {
 
 _cfg_default() { [[ -n ${CFG[$1]+x} ]] || CFG[$1]=$2; }
 
+# True when /home gets a partition of its own.
+cfg_home_part() { [[ ${CFG[home]:-root} == partition ]]; }
+
+# The GiB the root filesystem needs at least: the system, and hibernation's swap file.
+cfg_root_min() {
+  local min=20
+  if [[ ${CFG[desktop]:-none} != none ]]; then min=40; fi
+  if [[ ${CFG[swap]:-} == hibernate && ${HW[ram_mib]:-} =~ ^[0-9]+$ ]]; then min=$((min + (HW[ram_mib] + 1023) / 1024)); fi
+  echo "$min"
+}
+
+# True when the swap answer makes a swap file: file, or hibernate, which sizes it for hibernation.
+cfg_swap_file() { [[ ${CFG[swap]:-} == file || ${CFG[swap]:-} == hibernate ]]; }
+
 # Fills every key that isn't set yet, so a loaded config always wins. With ask, only the keys the
 # questions don't ask: the rest stay unset, and the menus mark them [!] until they're answered.
 cfg_defaults_apply() { # [ask]
@@ -214,6 +231,8 @@ cfg_defaults_apply() { # [ask]
   _cfg_default keymap us
   _cfg_default disk_mode wipe
   _cfg_default filesystem ext4
+  _cfg_default home root
+  _cfg_default root_size 80
   _cfg_default encryption none
   _cfg_default luks_discard yes
   _cfg_default swap zram
@@ -222,7 +241,9 @@ cfg_defaults_apply() { # [ask]
   _cfg_default gnome_variant light
   _cfg_default display_manager auto
   _cfg_default bootloader systemd-boot
+  _cfg_default secure_boot no
   _cfg_default kernel gentoo-kernel-bin
+  _cfg_default kernel_version lts
   _cfg_default nvidia_driver proprietary
   _cfg_default network networkmanager
   _cfg_default keep_wifi yes
@@ -244,6 +265,9 @@ cfg_defaults_apply() { # [ask]
   _cfg_default browser firefox-bin
   _cfg_default fonts_cjk no
   _cfg_default media_keys no
+  _cfg_default flatpak no
+  _cfg_default printing no
+  _cfg_default fingerprint no
   _cfg_default explain no
 }
 
@@ -455,9 +479,22 @@ cfg_check_rules() {
       _cfg_rule error "A desktop needs a disk of at least 40 GiB."
     fi
   fi
+  if cfg_home_part; then
+    if [[ ${CFG[filesystem]:-} == btrfs ]]; then
+      _cfg_rule error "On btrfs, /home is a subvolume of its own already; a /home partition needs ext4 or xfs."
+    elif [[ ${CFG[root_size]:-} =~ ^[0-9]+$ ]] && ((CFG[root_size] < $(cfg_root_min))); then
+      _cfg_rule error "The root filesystem needs at least $(cfg_root_min) GiB with these answers, and root_size is ${CFG[root_size]}."
+    elif [[ ${CFG[disk_mode]:-wipe} == wipe && -n ${CFG[disk]:-} ]] && size=$(hw_disk_size_bytes "${CFG[disk]}") &&
+      [[ $size =~ ^[0-9]+$ && ${CFG[root_size]:-} =~ ^[0-9]+$ ]] && ((size < (CFG[root_size] + 11) * 1024 ** 3)); then
+      _cfg_rule error "A ${CFG[root_size]} GiB root, its 1 GiB boot partition and at least 10 GiB for /home don't fit on ${CFG[disk]}."
+    fi
+  fi
   local dm=${CFG[display_manager]:-auto} desktop=${CFG[desktop]:-none}
   if [[ $dm != auto && " $(cfg_login_screens "$desktop") " != *" $dm "* ]]; then
     _cfg_rule error "The $dm login screen doesn't go with desktop=$desktop; pick one of: $(cfg_login_screens "$desktop")."
+  fi
+  if [[ ${CFG[swap]:-} == hibernate && ${CFG[secure_boot]:-} == yes ]]; then
+    _cfg_rule warn "Hibernation doesn't work while Secure Boot is on: the kernel's lockdown blocks it."
   fi
   if [[ ${CFG[network]:-} == networkd && ${CFG[init]:-} != systemd ]]; then
     _cfg_rule error "systemd-networkd needs systemd as the init system."
@@ -468,8 +505,10 @@ cfg_check_rules() {
   if [[ ${CFG[desktop]:-none} != none && ${CFG[network]:-} != networkmanager ]]; then
     _cfg_rule warn "A desktop without NetworkManager has no network applet."
   fi
-  if [[ ${HW[secure_boot]:-} == on ]]; then
-    _cfg_rule error "Secure Boot is on, and this version doesn't sign the bootloader. Turn Secure Boot off in the firmware setup, then start again."
+  if [[ ${CFG[secure_boot]:-} == yes && ${CFG[bootloader]:-} != systemd-boot ]]; then
+    _cfg_rule error "Secure Boot needs systemd-boot in this version."
+  elif [[ ${HW[secure_boot]:-} == on && ${CFG[secure_boot]:-} != yes ]]; then
+    _cfg_rule error "Secure Boot is on. Set Secure Boot to yes in System, so the installer signs the bootloader and kernels, or turn it off in the firmware setup."
   fi
   local ram=${HW[ram_mib]:-}
   # MemTotal is 100 to 300 MiB under the installed RAM, so compare the rounded GiB the screen shows.

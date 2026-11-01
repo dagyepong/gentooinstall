@@ -14,6 +14,16 @@ hardware_pipewire() { [[ ${CFG[audio]:-} == pipewire ]] && { [[ ${CFG[desktop]:-
 
 step_hardware_portage() {
   local f=/etc/portage/package.use/pipewire t=/etc/portage/package.use/tlp p=/etc/portage/package.use/power-profiles-daemon
+  local u=''
+  # zeroconf finds network printers; the binary host's cups lacks it. The binary host's fprintd is
+  # systemd's only, and OpenRC's must have pam for the login to take fingers.
+  if [[ ${CFG[printing]} == yes ]]; then u+=$'net-print/cups zeroconf\n'; fi
+  if [[ ${CFG[fingerprint]} == yes ]]; then u+=$'sys-auth/fprintd pam\n'; fi
+  if [[ -n $u ]]; then
+    printf '%s' "$u" | portage_file package.use hardware
+  elif [[ -e $GI_TARGET/etc/portage/package.use/hardware ]]; then
+    run_cmd rm -f -- "$GI_TARGET/etc/portage/package.use/hardware"
+  fi
   if hardware_pipewire; then
     # The desktop profiles set this already; the console profiles don't.
     echo 'media-video/pipewire sound-server' | portage_file package.use pipewire
@@ -46,6 +56,16 @@ step_hardware_packages() {
   esac
   if _hardware_thermald; then p+=(sys-power/thermald); fi
   if [[ ${CFG[fwupd]} == yes ]]; then p+=(sys-apps/fwupd); fi
+  if [[ ${CFG[printing]} == yes ]]; then
+    p+=(net-print/cups net-print/cups-filters net-dns/avahi)
+    # GNOME's settings have printers built in.
+    case ${CFG[desktop]} in
+      plasma) p+=(kde-plasma/print-manager) ;;
+      gnome | none) ;;
+      *) p+=(app-admin/system-config-printer) ;;
+    esac
+  fi
+  if [[ ${CFG[fingerprint]} == yes ]]; then p+=(sys-auth/fprintd); fi
   if ((${#p[@]})); then printf '%s\n' "${p[@]}"; fi
 }
 
@@ -78,4 +98,17 @@ step_hardware() {
   if _hardware_thermald; then service_enable thermald; fi
   # systemd starts fwupd through D-Bus when needed; its unit has nothing to enable.
   if [[ ${CFG[fwupd]} == yes ]] && is_openrc; then service_enable fwupd; fi
+  if [[ ${CFG[printing]} == yes ]]; then
+    if is_openrc; then service_enable cupsd; else service_enable cups; fi
+    service_enable avahi-daemon
+  fi
+  if [[ ${CFG[fingerprint]} == yes ]]; then _hardware_fprint_pam; fi
+}
+
+# The console, LightDM and greetd logins go through system-local-login; GDM and Plasma's lock
+# screen have fingerprint logins of their own. sufficient: without a finger, the password follows.
+_hardware_fprint_pam() {
+  local f=$GI_TARGET/etc/pam.d/system-local-login line='auth		sufficient	pam_fprintd.so'
+  [[ -f $f ]] || return 0
+  if ! grep -qxF "$line" "$f"; then { printf '%s\n' "$line"; cat -- "$f"; } | write_file /etc/pam.d/system-local-login; fi
 }

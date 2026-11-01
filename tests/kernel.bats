@@ -31,6 +31,22 @@ bls_entry() { # [MISSING_FILE]
   [ "$output" = "root=UUID=ROOTUUID rw" ]
 }
 
+@test "cmdline: hibernation resumes from the swap file on the root filesystem, and dracut gets resume" {
+  CFG[swap]=hibernate
+  state_set disk.resume_offset 34816
+  run kernel_cmdline
+  [ "$output" = "root=UUID=ROOTUUID resume=UUID=ROOTUUID resume_offset=34816 rw" ]
+  grep -qx 'add_dracutmodules+=" resume "' <(_kernel_dracut_conf)
+  state_set disk.resume_offset ''
+  run kernel_cmdline
+  [ "$status" -ne 0 ]
+  [[ $output == *"didn't record where the swap file starts"* ]]
+  CFG[swap]=file
+  run kernel_cmdline
+  [ "$output" = "root=UUID=ROOTUUID rw" ]
+  run ! grep -q resume <(_kernel_dracut_conf)
+}
+
 @test "cmdline: LUKS on OpenRC uses dracut's allow-discards, btrfs adds the subvolume" {
   CFG[encryption]=luks2 CFG[filesystem]=btrfs CFG[init]=openrc
   run kernel_cmdline
@@ -666,4 +682,18 @@ limine_conf() {
   [[ $stderr == *"/etc/kernel/install.d/95-limine.install"* ]]
   [ ! -s "$STUB_LOG" ]
   [ -z "$(ls -A "$GI_TARGET")" ]
+}
+
+@test "the newest kernel is accepted from testing, with its firmware and NVIDIA driver; the long-term one needs nothing" {
+  local f=$GI_TARGET/etc/portage/package.accept_keywords/kernel
+  CFG[kernel_version]=latest
+  step_kernel_portage
+  [ "$(cat "$f")" = 'sys-kernel/gentoo-kernel-bin ~amd64
+sys-kernel/gentoo-kernel ~amd64
+virtual/dist-kernel ~amd64
+sys-kernel/linux-firmware ~amd64
+x11-drivers/nvidia-drivers ~amd64' ]
+  CFG[kernel_version]=lts
+  step_kernel_portage
+  [ ! -e "$f" ]
 }

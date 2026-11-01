@@ -155,3 +155,13 @@ chroot_cmds() {
   [[ $stderr == *'visudo -cf /etc/sudoers.d/wheel.new'* ]]
   [[ $stderr != *correct-horse* ]]
 }
+
+@test "with printing, admins join lpadmin, which may add printers" {
+  echo 'lpadmin:x:106:' >> "$GI_TARGET/etc/group"
+  CFG[printing]=yes CFG[users]="larry anna" CFG[user.anna.admin]=no CFG[user.anna.shell]=bash
+  SECRET[user.anna.password]=correct-horse-battery-staple
+  step step_users
+  run chroot_cmds
+  [ "${lines[0]}" = 'useradd -m -G users\,audio\,video\,usb\,wheel\,lpadmin -s /bin/bash larry' ]
+  [[ $output == *'useradd -m -G users\,audio\,video\,usb -s /bin/bash anna'* ]]
+}

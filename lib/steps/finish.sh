@@ -14,6 +14,8 @@ step_finish() {
   run_chroot eclean-dist --deep
   run_chroot eclean-pkg --deep
   _finish_rm_stage3
+  # After the cleanup, so it holds none of what was deleted.
+  if [[ ${CFG[filesystem]} == btrfs ]]; then run_chroot /usr/local/sbin/snapshot "the fresh install"; fi
   _finish_first_steps
   run_cmd install -d -m 0700 -- "$GI_TARGET$dir"
   pkgs=$(_finish_packages)
@@ -71,6 +73,21 @@ _finish_first_steps() {
       if [[ -n $hint ]]; then printf '%s\n\n' "$hint"; fi
       if [[ -n $windows ]]; then
         printf 'Windows is in the boot menu too. If it uses BitLocker, start it from the\nfirmware boot menu instead (a key like F12, F11 or Esc while the computer\nstarts): from this menu it asks for its recovery key. The hardware clock\nkeeps local time, as Windows does.\n\n'
+      fi
+      if [[ ${CFG[desktop]} != none ]] && graphics_hybrid; then
+        printf 'This laptop has two GPUs. Apps run on the built-in one, which saves power,\nand the NVIDIA GPU powers off while nothing uses it. To run an app or game\non the NVIDIA GPU, start it with prime-run:\n  $ prime-run APP\nIn Steam, set a game'"'"'s launch options to: prime-run %%command%%\n\n'
+      fi
+      if [[ ${CFG[fingerprint]} == yes ]]; then
+        printf 'Fingerprint login: add a finger in the desktop'"'"'s user settings, or with\n  $ fprintd-enroll\n\n'
+      fi
+      if [[ ${CFG[desktop]} != none && ${CFG[flatpak]} == yes ]]; then
+        printf 'Flatpak: find apps on https://flathub.org, then install one, like\n  $ flatpak install flathub com.spotify.Client\nIt shows in the desktop menu after you log in again.\n\n'
+      fi
+      if [[ ${CFG[filesystem]} == btrfs ]]; then
+        printf 'Snapshots: emerge --sync takes a snapshot of the system, without /home,\nso there is one from before each update; the newest 10 are kept. To undo\nan update, list them, then make one the system from the next start on:\n  # rollback\n  # rollback 2026-11-01_120000\nRoll back before emerge --depclean when the update brought a new kernel.\nIf the system no longer starts, start the USB stick and run\n./gentooinstall --rescue, which opens a shell in it.\n\n'
+      fi
+      if [[ ${CFG[secure_boot]} == yes ]]; then
+        printf 'Secure Boot: if the MokManager screen never came, or the code was wrong,\nask for the key to be enrolled again; it asks for a new code to type at\nthe next start:\n  # mokutil --import /etc/portage/secureboot.der\n\n'
       fi
       if [[ ${CFG[disk_mode]} == free ]]; then
         printf 'The systems that were on the disk before are still there. Any not in the\nboot menu start from the firmware boot menu: press a key like F12, F11 or\nEsc while the computer starts.\n\n'
@@ -214,7 +231,20 @@ _finish_summary() { # PACKAGE_LIST
     printf '%s\n' "${news[@]}"
   fi
   printf 'Logs and the package list: /var/log/gentooinstall/\n'
+  _finish_mok_hint
   _finish_desktop_hint
+}
+
+# What to do at the first start so shim trusts the Secure Boot key; nothing without one.
+_finish_mok_hint() {
+  local code
+  code=$(state_get secureboot.mok_code)
+  [[ ${CFG[secure_boot]} == yes && -n $code ]] || return 0
+  printf '\nSecure Boot: at the first start a blue MokManager screen appears. Choose\nEnroll MOK, then Continue and Yes, type the code %s, then Reboot.\nIf Secure Boot is off, turn it on in the firmware setup after that.\n' "$code"
+  # The digits are on the top row's shifted level on AZERTY.
+  case ${CFG[keymap]} in
+    fr | fr-* | be-*) printf 'MokManager reads the keyboard as US English: type the digits on the top\nrow without Shift.\n' ;;
+  esac
 }
 
 _finish_news() {
@@ -263,6 +293,7 @@ _finish_unmount() {
   # The installer's own working directory would keep the target busy.
   if [[ $PWD/ == "$GI_TARGET"/* ]]; then cd /; fi
   if [[ ${CFG[encryption]} == luks2 ]]; then luks=' && cryptsetup close root'; fi
+  if [[ ${CFG[encryption]} == luks2 ]] && cfg_home_part; then luks+=' home'; fi
   swapfile=$(state_get disk.swapfile)
   if [[ -n $swapfile ]]; then run_cmd swapoff "$GI_TARGET$swapfile" || warn "Couldn't turn off the swap file $GI_TARGET$swapfile."; fi
   # A busy target fails at once (umount doesn't wait), and LUKS can't close while it's mounted.
@@ -270,6 +301,7 @@ _finish_unmount() {
     warn "Couldn't unmount $GI_TARGET: a program still uses it, like a shell in another terminal whose current directory is in it (fuser -vm $GI_TARGET lists them). A reboot stops them and unmounts it safely. To finish without rebooting, close them, then run: umount -R $GI_TARGET$luks"
   elif [[ -n $luks ]]; then
     run_cmd cryptsetup close root || warn "Couldn't close /dev/mapper/root."
+    if [[ $luks == *' home' ]]; then run_cmd cryptsetup close home || warn "Couldn't close /dev/mapper/home."; fi
   fi
   run_cmd sync
 }
