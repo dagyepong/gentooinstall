@@ -1,6 +1,8 @@
 # gentooinstall
 
-A guided installer for Gentoo Linux, like Arch's `archinstall`. You answer a few questions in a menu, and it installs Gentoo the way the [AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64) does, using prebuilt packages wherever it can. It's an unofficial project, not part of Gentoo.
+> **Note:** an unofficial project, not part of Gentoo, written with an AI coding assistant. [How it was made](HOW-IT-WAS-MADE.md)
+
+A guided installer for Gentoo Linux, like Arch's `archinstall`. You answer a few questions in a menu, and it installs Gentoo the way the [AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64) does, using prebuilt packages wherever it can.
 
 ![The installer's menus: the keys, sections still needing an answer, installing into free space, a desktop and login screen, the timezone picker and the package search](docs/demo.gif)
 
@@ -95,12 +97,6 @@ Please report problems here, not to Gentoo.
 tests/bootstrap.sh   # once: downloads shellcheck and bats
 tests/run.sh         # runs every test
 ```
-
-## How it was made
-
-The code and docs were written with an AI coding assistant, following my decisions on what the installer should do and how. They're checked by shellcheck and about 630 automated tests, by test installs in virtual machines, and by a real install on my laptop.
-
-Gentoo doesn't accept contributions made with AI tools ([its policy](https://wiki.gentoo.org/wiki/Project:Council/AI_policy)), so this installer can't become part of Gentoo, and its bugs belong here rather than on Gentoo's bug tracker, forums or IRC.
 
 ## License
 
