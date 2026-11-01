@@ -41,6 +41,12 @@ setup() {
   [[ $stderr == *"btrfs: btrfs help"* ]]
 }
 
+@test "plain menu: a default that isn't on offer isn't Enter's answer" {
+  run --separate-stderr ui_menu Pick "Pick a filesystem" zfs ext4 ext4 "" xfs xfs "" < <(printf '\n2\n')
+  [ "$output" = xfs ]
+  [[ $stderr != *"Enter = zfs"* && $stderr == *"Not a valid choice."* ]]
+}
+
 @test "plain menu rejects bad input and asks again" {
   run --separate-stderr ui_menu "${MENU[@]}" < <(printf '9\nzz\n08\n2\n')
   [ "$output" = xfs ]

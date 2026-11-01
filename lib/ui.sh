@@ -6,6 +6,7 @@
 ui_init() {
   if [[ $GI_UI != plain ]] && command -v dialog > /dev/null && [[ -t 0 && -t 1 && -t 2 ]]; then
     GI_UI=dialog
+    export DIALOGRC=$GI_HOME/lib/dialogrc
   else
     GI_UI=plain
   fi
@@ -28,7 +29,7 @@ ui_menu() { _ui_list menu "$@"; }
 ui_radio() { _ui_list radio "$@"; }
 
 _ui_list() { # KIND [--extra L] [--ok L] [--back L] TITLE TEXT DEFAULT ITEMS...
-  local kind=$1 extra='' ok='' back=Back title text def i ans out='' n w rc=0 tw=0 dup=1
+  local kind=$1 extra='' ok='' back=Back title text def i ans out='' n w rc=0 tw=0 dup=1 found=0
   shift
   while [[ ${1:-} == --* ]]; do
     case $1 in
@@ -77,6 +78,11 @@ _ui_list() { # KIND [--extra L] [--ok L] [--back L] TITLE TEXT DEFAULT ITEMS...
     if [[ ${tags[i],,} != "${items[i],,}" ]]; then dup=0; fi
   done
   for ((i = 0; i < n && !dup; i++)); do printf -v 'labels[i]' '%-*s  %s' "$tw" "${tags[i]}" "${items[i]}"; done
+  # A default that isn't on offer, like a timezone from another region, isn't Enter's answer.
+  for ((i = 0; i < n; i++)); do
+    if [[ ${tags[i]} == "$def" ]]; then found=1; fi
+  done
+  if ((!found)); then def=''; fi
   while :; do
     _ui_header "$title" "$text"
     for ((i = 0; i < n; i++)); do
@@ -196,6 +202,16 @@ ui_msg() { # TITLE TEXT
   local rc=0
   if [[ $GI_UI == dialog ]]; then
     _ui_dialog --title "$1" --msgbox "$2" 0 0 > /dev/null || rc=$?
+    if ((rc != 2)); then return 0; fi
+  fi
+  _ui_header "$1" "$2"
+}
+
+# Shows TEXT and returns at once, for something that takes a while.
+ui_info() { # TITLE TEXT
+  local rc=0
+  if [[ $GI_UI == dialog ]]; then
+    _ui_dialog --title "$1" --infobox "$2" 0 0 > /dev/null || rc=$?
     if ((rc != 2)); then return 0; fi
   fi
   _ui_header "$1" "$2"

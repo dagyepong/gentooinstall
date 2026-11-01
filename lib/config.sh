@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # Config: key schema, defaults, validators, load and save, secrets, combination rules.
 
-GI_CFG_KEYS=(format keymap disk filesystem encryption luks_discard swap init desktop
+GI_CFG_KEYS=(format keymap disk disk_mode filesystem encryption luks_discard swap init desktop
   gnome_variant display_manager bootloader kernel nvidia_driver network keep_wifi wifi_ssid
   audio bluetooth power thermald fwupd sshd hostname timezone locales lang root users
   privilege mirror binpkgs cflags makeopts emerge_jobs tune browser fonts_cjk media_keys packages explain)
@@ -66,13 +66,14 @@ _cfg_check() { # KEY VALUE; prints the problem and returns 1
         return 1
       fi
       ;;
+    disk_mode) _cfg_enum "$v" wipe free ;;
     filesystem) _cfg_enum "$v" ext4 xfs btrfs ;;
     encryption) _cfg_enum "$v" none luks2 ;;
     swap) _cfg_enum "$v" zram file none ;;
     init) _cfg_enum "$v" openrc systemd ;;
     desktop) _cfg_enum "$v" plasma gnome xfce budgie cinnamon i3 sway hyprland niri mangowm dwm dwl none ;;
     gnome_variant) _cfg_enum "$v" light full ;;
-    display_manager) _cfg_enum "$v" auto none ;;
+    display_manager) _cfg_enum "$v" auto none tuigreet gtkgreet sddm gdm lightdm ;;
     bootloader) _cfg_enum "$v" systemd-boot grub limine ;;
     kernel) _cfg_enum "$v" gentoo-kernel-bin gentoo-kernel ;;
     nvidia_driver) _cfg_enum "$v" proprietary nouveau ;;
@@ -189,13 +190,29 @@ _cfg_atom_re() {
 
 _cfg_default() { [[ -n ${CFG[$1]+x} ]] || CFG[$1]=$2; }
 
-# Fills every key that isn't set yet, so a loaded config always wins.
-cfg_defaults_apply() {
+# Fills every key that isn't set yet, so a loaded config always wins. With ask, only the keys the
+# questions don't ask: the rest stay unset, and the menus mark them [!] until they're answered.
+cfg_defaults_apply() { # [ask]
   local u
   local -a users=() locales=()
   _cfg_default format 1
-  _cfg_default keymap us
   _cfg_default disk ''
+  _cfg_default wifi_ssid "${HW[wifi_ssid]:-}"
+  _cfg_default users ''
+  _cfg_default packages ''
+  # Tuning knobs whose defaults suit almost everyone.
+  _cfg_default mirror cdn
+  _cfg_default cflags '-march=native -O2 -pipe'
+  _cfg_default makeopts auto
+  _cfg_default emerge_jobs auto
+  read -ra users <<< "${CFG[users]}"
+  for u in "${users[@]}"; do
+    _cfg_default "user.$u.admin" yes
+    _cfg_default "user.$u.shell" bash
+  done
+  [[ ${1:-} != ask ]] || return 0
+  _cfg_default keymap us
+  _cfg_default disk_mode wipe
   _cfg_default filesystem ext4
   _cfg_default encryption none
   _cfg_default luks_discard yes
@@ -209,7 +226,6 @@ cfg_defaults_apply() {
   _cfg_default nvidia_driver proprietary
   _cfg_default network networkmanager
   _cfg_default keep_wifi yes
-  _cfg_default wifi_ssid "${HW[wifi_ssid]:-}"
   _cfg_default audio pipewire
   _cfg_default bluetooth "$(_cfg_yes_if "${HW[bluetooth]:-}")"
   if [[ ${HW[laptop]:-} == yes ]]; then _cfg_default power ppd; else _cfg_default power none; fi
@@ -222,24 +238,36 @@ cfg_defaults_apply() {
   read -ra locales <<< "${CFG[locales]}"
   _cfg_default lang "${locales[0]:-}"
   _cfg_default root password
-  _cfg_default users ''
   _cfg_default privilege sudo
-  _cfg_default mirror cdn
   _cfg_default binpkgs yes
-  _cfg_default cflags '-march=native -O2 -pipe'
-  _cfg_default makeopts auto
-  _cfg_default emerge_jobs auto
   _cfg_default tune no
   _cfg_default browser firefox-bin
   _cfg_default fonts_cjk no
   _cfg_default media_keys no
-  _cfg_default packages ''
   _cfg_default explain no
-  read -ra users <<< "${CFG[users]}"
-  for u in "${users[@]}"; do
-    _cfg_default "user.$u.admin" yes
-    _cfg_default "user.$u.shell" bash
-  done
+}
+
+# The login screens DESKTOP can have: its own graphical one first, then the text one and none.
+cfg_login_screens() { # DESKTOP
+  case $1 in
+    plasma) echo sddm tuigreet none ;;
+    gnome) echo gdm tuigreet none ;;
+    xfce | budgie | cinnamon) echo lightdm tuigreet none ;;
+    none) echo none ;;
+    *) echo gtkgreet tuigreet none ;;
+  esac
+}
+
+# The login screen display_manager picks. auto, from older configs, is the full desktops' own
+# graphical one and none for the window managers.
+cfg_login_screen() {
+  local dm=${CFG[display_manager]:-auto}
+  if [[ $dm == auto ]]; then
+    dm=$(cfg_login_screens "${CFG[desktop]:-none}")
+    dm=${dm%% *}
+    if [[ $dm == gtkgreet ]]; then dm=none; fi
+  fi
+  echo "$dm"
 }
 
 _cfg_yes_if() { if [[ $1 == yes ]]; then echo yes; else echo no; fi; }
@@ -426,6 +454,10 @@ cfg_check_rules() {
     elif ((size < 40 * 1024 ** 3)); then
       _cfg_rule error "A desktop needs a disk of at least 40 GiB."
     fi
+  fi
+  local dm=${CFG[display_manager]:-auto} desktop=${CFG[desktop]:-none}
+  if [[ $dm != auto && " $(cfg_login_screens "$desktop") " != *" $dm "* ]]; then
+    _cfg_rule error "The $dm login screen doesn't go with desktop=$desktop; pick one of: $(cfg_login_screens "$desktop")."
   fi
   if [[ ${CFG[network]:-} == networkd && ${CFG[init]:-} != systemd ]]; then
     _cfg_rule error "systemd-networkd needs systemd as the init system."

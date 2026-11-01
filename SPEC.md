@@ -59,11 +59,12 @@ Sources, checked 2026-10-30: the [Gentoo AMD64 Handbook](https://wiki.gentoo.org
 
 ## 3. Questions
 
-Every question shows a default, has a help line, can be answered from a config file, and validates input on entry. The user can go back at any point.
+Every question has a help line, can be answered from a config file, and validates input on entry. The user can go back at any point. In an interactive run nothing is filled in for the user: each question the config file leaves out is marked `[!] not set` until it's answered, lists select nothing until the user picks, and the recommended choice is labeled instead. Compiler flags, MAKEOPTS, emerge jobs and the mirror keep their defaults, which suit almost everyone. Questions that never show for the answers given (TRIM without LUKS, the GNOME variant for other desktops) get their defaults. Unattended runs and `--resume` take the defaults below for anything the config leaves out.
 
 - [ ] **Keyboard layout.** Console keymap; the desktop layout follows from it (section 11). Validate against the keymaps installed on the live system.
 - [ ] **Disk.** Pick from a list showing path, model, size, transport, current partitions, and any OS found on it.
-- [ ] **Disk mode.** v1: wipe the whole disk.
+- [ ] **Disk mode.** The whole disk, erased (`disk_mode=wipe`, the unattended default), or its free space (`free`): the largest unpartitioned space of the disk's GPT gets the install's own 1 GiB ESP and root, and every other partition stays as it was, so another system keeps booting. The installer never resizes a partition; the user shrinks one from its own system first, like Windows' Disk Management. The disk menu shows each disk's largest free space. Before Install, free space needs a GPT, no partitions from an earlier gentooinstall run, and at least 21 GiB in one piece (41 GiB with a desktop): 20 or 40 for the system, 1 for the ESP. Windows gets a boot menu entry (section 16) and the hardware clock in local time (section 11); other systems start from the firmware boot menu, which first-steps.txt says. The question says that Windows with BitLocker asks for its recovery key once Secure Boot is off, which the installer needs.
+- [ ] **Windows.** After the disk step, every EFI system partition other than the install's own is mounted read-only once to look for `EFI/Microsoft/Boot/bootmgfw.efi`, in either disk mode, so a Windows on another disk counts too. The answer (its PARTUUID and filesystem UUID, or none) stays in the state. A dry run looks at nothing.
   - [ ] (later) Install into free space next to an existing OS.
   - [ ] (later) Use partitions the user already made.
 - [ ] **Root filesystem.** ext4 (default), xfs or btrfs with subvolumes. (later) f2fs.
@@ -75,7 +76,7 @@ Every question shows a default, has a help line, can be answered from a config f
 - [ ] (later) **Separate /home partition.**
 - [ ] **Init system.** OpenRC (default) or systemd, with a one-line explanation of each.
 - [ ] **Desktop.** KDE Plasma, GNOME, Xfce, Budgie, Cinnamon, the window managers i3, Sway, Hyprland, Niri, MangoWM, dwm and dwl, or none (console only). This choice decides the profile and the stage3. Budgie, Hyprland, Niri and MangoWM come from overlays (section 18); their help text says the overlay is third-party, Gentoo doesn't review it, and the desktop builds from source.
-- [ ] **Display manager.** Default follows the desktop: SDDM for Plasma, GDM for GNOME, LightDM with lightdm-gtk-greeter for Xfce, Budgie and Cinnamon. Option for none, starting from a TTY. The window managers never get one, so the question is hidden for them.
+- [ ] **Login screen.** A full desktop offers its own graphical one (SDDM for Plasma, GDM for GNOME, LightDM with lightdm-gtk-greeter for Xfce, Budgie and Cinnamon), the text one, tuigreet, or none. A window manager offers gtkgreet (graphical), tuigreet or none. tuigreet and gtkgreet run on greetd (section 18). None starts from a TTY. Changing the desktop drops a login screen the new one doesn't offer. Hidden without a desktop. `display_manager=auto`, the unattended default, is the desktop's own graphical one, and none for the window managers.
 - [ ] **Bootloader.** systemd-boot (default on UEFI), GRUB or Limine.
   - [ ] (later) EFI stub, UKI.
 - [ ] **Kernel.** `gentoo-kernel-bin` (default, prebuilt) or `gentoo-kernel` (compiled locally, about an hour or more).
@@ -87,7 +88,7 @@ Every question shows a default, has a help line, can be answered from a config f
 - [ ] **Laptop power management.** power-profiles-daemon (default on laptops), TLP, or none. Never both.
 - [ ] (later) **Printing.** CUPS.
 - [ ] **Hostname.** Validate as an RFC 1123 label: `^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`.
-- [ ] **Timezone.** Typed as `Region/City`, default `UTC`. The minimal ISO strips `/usr/share/zoneinfo`, so only the format is checked here. Section 6 checks the zone exists.
+- [ ] **Timezone.** Picked from a menu: the region, then the city. The minimal ISO strips `/usr/share/zoneinfo`, so the list ships with the installer in `lib/timezones.tsv`, made from tzdata's `zone.tab` and `iso3166.tab` (one zone per country or region, with the country's name). UTC is one choice, and Other... types any name, checked for its format only. Section 6 checks the zone exists. Unattended default `UTC`.
 - [ ] **Locales.** One or more, plus the system `LANG`. Default `en_US.UTF-8`. The ISO strips `/usr/share/i18n` too, so section 6 checks them against the stage3.
 - [ ] **Root account.** Set a password, or lock root. Locking is allowed only when at least one admin user exists.
 - [ ] **Users.** One or more. Each has a username, a password (typed twice), an admin yes/no, and a shell (bash, zsh or fish). The shell question says that fish, as a login shell, doesn't read `/etc/profile.env`, so it misses the variables set through `/etc/env.d` (Gentoo bug 545830); the installer adds only the keyboard layout ones (section 18).
@@ -98,7 +99,7 @@ Every question shows a default, has a help line, can be answered from a config f
 - [ ] **Tune for this machine.** Off by default when binary packages are on. On writes this CPU's `CPU_FLAGS_X86` and narrows `VIDEO_CARDS` to the detected GPUs, which makes some packages build from source. The compile preview shows how many.
 - [ ] **Browser.** `firefox-bin` (default), Chromium, or none.
 - [ ] **Media keys.** Off by default, and asked only for Sway, Hyprland and Niri, whose default configs call programs nothing else installs for the brightness, player and Print keys (section 18). The help names them and how many packages they build from source, and for Sway and Hyprland says brightnessctl comes from GURU, which Gentoo doesn't review. It says the volume keys work either way, or with `audio=none` that they do nothing either way.
-- [ ] **Extra packages.** A free list of package atoms. Checked in the compile preview (section 9), after the tree is synced.
+- [ ] **Extra packages.** Picked in fzf from Gentoo's package list: Space marks a package, Enter confirms, and the current ones come first, marked. The search matches package names, exact substrings first by the shortest name. The ISO has neither fzf nor a package tree, so the first use downloads, into the run directory, fzf's static binary from its GitHub release, checked against a SHA-256 pinned in the installer, and `metadata/pkg_desc_index` from Gentoo's `gentoo-mirror/gentoo` repository. Ctrl+T switches to typing atoms, for versions, slots or overlay packages, starting from the ones picked; a failed download and `--no-tui` type them too. Checked in the compile preview (section 9), after the tree is synced.
 - [ ] **Extra services.** sshd (default off), fwupd (default on for laptops), zram (follows the swap answer).
 - [ ] (later) **Overlays.** GURU and others through `eselect repository`.
 - [ ] (later) **Flatpak** with Flathub.
@@ -110,7 +111,7 @@ Every question shows a default, has a help line, can be answered from a config f
 - [ ] Jump back to any question from the review screen.
 - [ ] Run the combination checks (see [validation rules](#combination-rules)) and block the install until they pass.
 - [ ] Save the config, without secrets, before anything destructive happens.
-- [ ] Final confirmation: the user types the disk name, for example `nvme0n1`. `--yes` skips this only when a config file was given.
+- [ ] Final confirmation: the user types the disk name, for example `nvme0n1`. In free space mode it says what stays on the disk and what's added, instead of what gets deleted. `--yes` skips this only when a config file was given.
 - [ ] `--dry-run` stops here and prints every command the install would run.
 
 ## 5. Disk preparation
@@ -118,7 +119,8 @@ Every question shows a default, has a help line, can be answered from a config f
 - [ ] Resolve the chosen disk to its `/dev/disk/by-id/` path, or its `/dev/disk/by-path/` path when it has no by-id link (a QEMU virtio disk without a serial), and use that from here on, so a replugged USB stick can't shift `/dev/sdX` names onto the wrong disk.
 - [ ] Refuse the disk that holds the live medium.
 - [ ] If the disk has anything mounted or active from an earlier attempt, show it and offer to release it: `swapoff`, `umount`, `cryptsetup close`.
-- [ ] Wipe old signatures with `wipefs --all` on every partition and then the disk. Leftover LUKS, RAID or filesystem headers confuse `blkid` later.
+- [ ] Wipe old signatures with `wipefs --all` on every partition and then the disk. Leftover LUKS, RAID or filesystem headers confuse `blkid` later. Free space mode wipes only its two new partitions.
+- [ ] Free space mode: `sfdisk --append` adds the ESP and root to the largest free space that `sfdisk -F` lists, with explicit start sectors, 1 MiB aligned in the disk's own sector size, and `--backup` saves the table sectors it changes to the run directory first. It checks the GPT, the names and the room again and stops before writing if one fails.
 - [ ] Partition with an `sfdisk` script, never interactive `fdisk`:
   - [ ] GPT label, 1 MiB alignment.
   - [ ] ESP: 1 GiB, type "EFI System", FAT32, label `ESP`, mounted at `/efi`.
@@ -225,7 +227,7 @@ Every question shows a default, has a help line, can be answered from a config f
 - [ ] Console keymap: `keymap=` in `/etc/conf.d/keymaps` on OpenRC, `KEYMAP=` in `/etc/vconsole.conf` on systemd.
 - [ ] Desktop keyboard layout in `/etc/X11/xorg.conf.d/00-keyboard.conf`, mapped from the console keymap the way systemd's `kbd-model-map` does, since `localectl` can't run in a chroot.
 - [ ] Hardware clock in UTC: `clock="UTC"` in `/etc/conf.d/hwclock` on OpenRC.
-  - [ ] (later) Local time for dual boot with Windows.
+  - [ ] With Windows found, the hardware clock keeps local time, as Windows does: `clock="local"` in `/etc/conf.d/hwclock` on OpenRC, `LOCAL` in `/etc/adjtime` on systemd. Otherwise UTC.
 - [ ] With LUKS, make sure the initramfs passphrase prompt uses the chosen keymap. Test this in a VM with a non-US layout.
 
 ## 12. Firmware and kernel
@@ -312,16 +314,17 @@ Every question shows a default, has a help line, can be answered from a config f
   - [ ] `grub-install --target=x86_64-efi --efi-directory=/efi`. The target is needed because the profile installs the `pc` platform too.
   - [ ] `grub-mkconfig -o /boot/grub/grub.cfg`.
   - [ ] The `grub` flag on installkernel regenerates the config on kernel updates, and section 12's cleanup hook after it removes an old kernel.
-  - [ ] (later) `os-prober` for dual boot.
+  - [ ] With Windows found, `/etc/grub.d/35_windows` adds an entry that chainloads `/EFI/Microsoft/Boot/bootmgfw.efi` from Windows' ESP, found by its filesystem UUID. No os-prober.
+- [ ] Windows in the other menus: Limine's plugin (section 12) adds an `efi` entry with `path: guid(<Windows ESP PARTUUID>):/EFI/Microsoft/Boot/bootmgfw.efi`. systemd-boot lists Windows only from its own ESP, so `EFI/Microsoft` is copied there from Windows' ESP once; if a Windows update stops that copy from starting, the firmware boot menu still starts Windows. Through any of these menus a BitLocker Windows asks for its recovery key, since the boot path it measured changed, so first-steps.txt says to start it from the firmware boot menu then.
   - [ ] (later) BIOS: `grub-install --target=i386-pc /dev/<disk>`.
 - [ ] Limine:
   - [ ] Copy `/usr/share/limine/BOOTX64.EFI` to `\EFI\limine\BOOTX64.EFI` and the fallback path. Both read `/limine.conf` at the root of the ESP, which section 12's plugin writes, and `boot():` in it names the ESP.
   - [ ] Check the first entry of `limine.conf` names a kernel and initramfs on the ESP. If not, rerun section 12's `emerge --config` and check again.
   - [ ] The ebuild never touches the ESP, so the kernel step's `/etc/portage/env/sys-boot/limine` does: after each install of `sys-boot/limine` its `post_pkg_postinst` copies the new binary beside each ESP copy, flushes it and renames it over the copy. It replaces the fallback only while that matches `\EFI\limine\BOOTX64.EFI`, so another loader there is kept, and it does nothing before the first copy exists. A failed copy keeps the old loader whole and names the copy to redo by hand.
 - [ ] If the bootloader install reports read-only EFI variables, remount with `mount -o remount,rw,nosuid,nodev,noexec --types efivarfs efivarfs /sys/firmware/efi/efivars` and retry, as the Handbook's debugging notes say.
-- [ ] Create the firmware boot entry with `efibootmgr --create --disk <disk> --part 1 --loader <loader> --label <label>` from the live system, unless an entry names the ESP's PARTUUID and the loader already. In `arch-chroot`'s PID namespace systemd sees a container, so `bootctl install` skips EFI variables, and `--variables=yes` writes an entry without the ESP's partition (`HD(0,GPT,00000000-...)`). `grub-install` registers its own entry, so for GRUB this only fills in when it didn't. Read-only EFI variables get the same remount and retry as the bootloader install.
+- [ ] Create the firmware boot entry with `efibootmgr --create --disk <disk> --part <ESP's number> --loader <loader> --label <label>` from the live system (1 on a wiped disk; the disk step saves it), unless an entry names the ESP's PARTUUID and the loader already. In `arch-chroot`'s PID namespace systemd sees a container, so `bootctl install` skips EFI variables, and `--variables=yes` writes an entry without the ESP's partition (`HD(0,GPT,00000000-...)`). `grub-install` registers its own entry, so for GRUB this only fills in when it didn't. Read-only EFI variables get the same remount and retry as the bootloader install.
 - [ ] Check `efibootmgr` lists the new entry first in `BootOrder`.
-- [ ] Make sure a fallback `\EFI\BOOT\BOOTX64.EFI` exists, because some laptops forget NVRAM boot entries. `bootctl install` writes it. GRUB needs a second `grub-install --removable`. Limine gets a second copy of its binary. Skip this on dual-boot disks, where it would replace the other OS's fallback.
+- [ ] Make sure a fallback `\EFI\BOOT\BOOTX64.EFI` exists, because some laptops forget NVRAM boot entries. `bootctl install` writes it. GRUB needs a second `grub-install --removable`. Limine gets a second copy of its binary. The ESP is always the install's own, also in free space mode, so this never replaces another system's fallback.
 - [ ] (later) UKI and EFI stub booting.
 - [ ] (later) Secure Boot through shim and MOK, or through the user's own keys.
 
@@ -344,7 +347,7 @@ Every question shows a default, has a help line, can be answered from a config f
   - [ ] Xfce: `xfce-base/xfce4-meta`, plus `gnome-extra/nm-applet` with NetworkManager.
   - [ ] Cinnamon: `gnome-extra/cinnamon` and `x11-terms/gnome-terminal`, the terminal it opens. On OpenRC `net-libs/webkit-gtk keyring`, `gnome-base/gvfs gnome-online-accounts keyring`, and `gstreamer` on `media-video/pipewire` and `sys-apps/xdg-desktop-portal`: the flags of the binary host's only OpenRC builds, which saves 3 source builds and adds no package. Without keyring webkit-gtk compiles for hours.
   - [ ] Budgie 10.10 (Wayland, on labwc): `budgie-base/budgie-meta` and `x11-terms/gnome-terminal` from SarahMiaOverlay, with `*/*::SarahMiaOverlay`, `gui-wm/labwc` and `dev-cpp/toml11` at `~amd64` and the `vala` flags its dependencies need. 10.9.3, the stable one, doesn't build against current libpeas. Its labwc bridge takes the keyboard layout from systemd-localed, which OpenRC lacks, and then from `/etc/default/keyboard` (`XKBLAYOUT` and the like), which the desktop step writes from the locale step's X layout.
-- [ ] Window managers start from the console, with the programs their shipped default config launches, so they work on first login:
+- [ ] Window managers start from the console or a greetd login screen, with the programs their shipped default config launches, so they work on first login:
   - [ ] i3: `x11-wm/i3`, `x11-terms/xterm` (for `i3-sensible-terminal`), `x11-misc/dmenu`, `x11-misc/i3status`, `x11-misc/i3lock`, `x11-misc/xss-lock`, `x11-misc/dex` (it runs the XDG autostart files), plus `gnome-extra/nm-applet` with NetworkManager.
   - [ ] dwm: `x11-wm/dwm`, `x11-terms/st`, `x11-misc/dmenu`. dwl: `gui-wm/dwl` (`~amd64`), `gui-apps/foot`, `gui-apps/wmenu`. Both build their default savedconfig; first-steps.txt says how to change it and rebuild.
   - [ ] Sway: `gui-wm/sway`, `gui-apps/foot`, `gui-apps/wmenu`; its bar is built in. `gui-wm/sway wallpapers` and `gui-apps/swaybg gdk-pixbuf`: the default config sets a wallpaper only that flag installs, and without it every start shows "There are errors in your config file". Two small source builds.
@@ -357,12 +360,13 @@ Every question shows a default, has a help line, can be answered from a config f
     - [ ] The keyboard layout. They ignore `xorg.conf.d`, so each gets the locale step's X layout (section 13's mapping, read through `locale_xkb`) its own way: Sway, dwl and Niri through libxkbcommon's `XKB_DEFAULT_LAYOUT`, `_MODEL`, `_VARIANT` and `_OPTIONS` in `/etc/env.d/90xkb`, and the same in `/etc/fish/conf.d/90xkb.fish` for a fish login shell, which doesn't read `/etc/profile.env` (Niri asks systemd-localed first, which has the same on systemd); MangoWM through the `xkb_rules_*` lines of `/etc/mango/config.conf`; Hyprland through `/etc/xdg/hypr/hyprland.lua`, which it reads while the user has no config of their own: it runs `/usr/share/hypr/hyprland.lua`, Hyprland's example, then sets the layout, and keeps the example's first-run warning and welcome. Both shipped configs set `us`.
     - [ ] What xdg-desktop-portal needs to serve them. Hyprland, Niri (`--session`) and MangoWM export their session to it themselves. Sway gets `/etc/sway/config.d/50-gentooinstall.conf`, and dwl's start command runs it through `dwl -s`: `dbus-update-activation-environment --systemd` with `WAYLAND_DISPLAY` and `XDG_CURRENT_DESKTOP` (`sway`, or `wlroots` for dwl's `wlroots-portals.conf`). Niri's file chooser is GTK's through `/etc/xdg-desktop-portal/niri-portals.conf`, since GNOME's needs Nautilus.
   - [ ] first-steps.txt and the final summary give the exact start command. On systemd the login starts the D-Bus session bus and PipeWire; on OpenRC the command wraps the window manager in `dbus-run-session` and starts `gentoo-pipewire-launcher` first, since only desktops read PipeWire's XDG autostart file. i3 is the exception: its config's `dex` reads it.
+- [ ] Login screens on greetd: `gui-libs/greetd`, built from source (the desktop stage3 has Rust), with tuigreet (`gui-apps/tuigreet`) on the console, or gtkgreet (`gui-apps/gtkgreet`, `~amd64`) shown in Sway (`gui-wm/sway`). `/etc/greetd/config.toml` runs the greeter on VT 7, display-manager-init's, as the `greetd` user. After a login greetd runs `/usr/local/bin/start-desktop`, which holds the command first-steps.txt gives for a start from the console, so the session gets the same D-Bus and PipeWire setup. gtkgreet's Sway gets the locale step's X layout in `/etc/greetd/sway-config`, since the password is typed there.
 - [ ] Overlays, only for the desktop that needs one, plus GURU for brightnessctl when Sway or Hyprland has media keys on: a plain `/etc/portage/repos.conf/<name>.conf` with git sync (`guru` from `https://github.com/gentoo-mirror/guru.git`, `hyproverlay`, `SarahMiaOverlay`, the URLs `eselect repository` uses). The stage3 has no git, so the live system's `git clone --depth 1` makes the first copy; `dev-vcs/git` gets installed for later syncs. Changing the answer removes the overlay again. The compile preview says how many packages come from an overlay, which Gentoo doesn't review, and lists them right after the heavy builds.
 - [ ] OpenRC plumbing:
   - [ ] `rc-update add dbus default`.
   - [ ] `rc-update add elogind boot`.
-  - [ ] `gui-libs/display-manager-init`, `DISPLAYMANAGER="sddm"`, `"gdm"` or `"lightdm"` in `/etc/conf.d/display-manager`, then `rc-update add display-manager default`.
-- [ ] systemd: `systemctl enable sddm`, `gdm` or `lightdm`.
+  - [ ] `gui-libs/display-manager-init`, `DISPLAYMANAGER="sddm"`, `"gdm"`, `"lightdm"` or `"greetd"` in `/etc/conf.d/display-manager`, then `rc-update add display-manager default`.
+- [ ] systemd: `systemctl enable sddm`, `gdm`, `lightdm` or `greetd`.
 - [ ] Fonts: `media-fonts/noto`, `media-fonts/noto-emoji`, `media-fonts/dejavu`. `media-fonts/noto-cjk` as an option.
 - [ ] Check in the VM tests that XDG portals work: file pickers and screen sharing. Add the portal backend explicitly if the desktop meta package doesn't pull it in.
 - [ ] Browser: `www-client/firefox-bin`, `www-client/chromium`, or none.
@@ -494,7 +498,7 @@ packages=app-editors/neovim dev-vcs/git
 
 ### Interface
 
-- [ ] Menus with `dialog`, which the minimal ISO ships as a dependency of its own `net-setup`. Plain numbered prompts when `--no-tui` is given, or when stdin, stdout or stderr isn't a terminal.
+- [ ] Menus with `dialog`, which the minimal ISO ships as a dependency of its own `net-setup`, in white text on black from `lib/dialogrc`. The first screen lists the keys: the arrows move, Space selects in a list, Enter confirms, Tab switches buttons and Esc goes back. Enter on a list with nothing selected says to press Space first. Plain numbered prompts when `--no-tui` is given, or when stdin, stdout or stderr isn't a terminal.
 - [ ] Every screen has help text and a back option and shows the default.
 - [ ] Works on an 80x24 text console, a serial console and over SSH, so you can drive a laptop install from another machine.
 - [ ] Never carry meaning by color alone, and work with color turned off.

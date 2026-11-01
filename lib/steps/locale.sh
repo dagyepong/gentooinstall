@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# Locale step: timezone, locales, system language, console and desktop keyboard, hardware clock.
+# Locale step: timezone, locales, system language, console and desktop keyboard, hardware clock
+# (UTC, or local time beside Windows).
 
 step_define locale "Time, locale and keyboard" \
   "Sets the timezone, builds the chosen locales, picks the system language and sets the console and desktop keyboard layout. The console keymap is written before the kernel is installed, so the initramfs asks for the LUKS passphrase with the right layout." \
@@ -15,7 +16,7 @@ step_locale_portage() {
 }
 
 step_locale() {
-  local loc
+  local loc rtc=UTC
   if ((!GI_DRY_RUN)); then stage3_check_answers; fi
   # Again, for a keymap a --resume --config changed after the package install: the kernel step,
   # which runs next, rebuilds the initramfs with it.
@@ -30,7 +31,13 @@ step_locale() {
   if is_systemd; then printf 'LANG=%s\n' "${CFG[lang]}" | write_file /etc/locale.conf; fi
   run_chroot env-update
   if [[ ${CFG[desktop]} != none ]]; then _locale_xorg | write_file /etc/X11/xorg.conf.d/00-keyboard.conf; fi
-  if is_openrc; then set_shell_var /etc/conf.d/hwclock clock UTC; fi
+  # Windows keeps the hardware clock in local time, so both systems have to read it that way.
+  if [[ -n $(disk_windows_esp) ]]; then rtc=local; fi
+  if is_openrc; then
+    set_shell_var /etc/conf.d/hwclock clock "$rtc"
+  else
+    printf '0.0 0 0.0\n0\n%s\n' "${rtc^^}" | write_file /etc/adjtime
+  fi
 }
 
 # The locale's line from the stage3's SUPPORTED list, so non-UTF-8 locales keep their charmap.

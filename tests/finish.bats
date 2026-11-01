@@ -6,7 +6,8 @@ bats_require_minimum_version 1.5.0
 setup() {
   load helpers
   gi_setup
-  gi_load core ui state config finish desktop hardware
+  gi_load core ui state config disk finish desktop hardware
+  state_set windows.esp none
   CFG[users]="larry alice"
   cfg_defaults_apply
   world_packages() { printf '%s\n' kde-plasma/plasma-meta '>=app-editors/vim-9.1:0::gentoo'; }
@@ -107,6 +108,19 @@ x11-drivers/nvidia-drivers-595.104.02 source" ]
   [[ $s == *"  2018-08-07  Migration required for OpenSSH with LDAP"* ]]
   [[ $s =~ The\ install\ took\ 0h\ 0[0-9]m ]]
   grep -qF 'Packages: 2 from binary packages' "$BATS_TEST_TMPDIR/stderr"
+}
+
+@test "first-steps.txt: Windows in the menu with the BitLocker and clock notes, other systems through the firmware menu" {
+  CFG[users]=larry
+  _finish_first_steps
+  run ! grep -qE 'Windows|firmware boot menu' "$GI_TARGET/home/larry/first-steps.txt"
+  state_set windows.esp '3333-p 3333-f'
+  CFG[disk_mode]=free
+  _finish_first_steps
+  local f=$GI_TARGET/home/larry/first-steps.txt
+  grep -qF 'Windows is in the boot menu too. If it uses BitLocker, start it from the' "$f"
+  grep -qF 'The hardware clock' "$f"
+  grep -qF 'The systems that were on the disk before are still there.' "$f"
 }
 
 @test "a summary with nothing to report says so" {

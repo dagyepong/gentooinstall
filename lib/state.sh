@@ -84,7 +84,7 @@ steps_run() {
   local - # restores errexit, which the runner toggles around each step
   local id i=0 rc excerpt k keymap pkg
   cfg_defaults_apply
-  cfg_lock disk filesystem encryption swap init
+  cfg_lock disk disk_mode filesystem encryption swap init
   _steps_sync_config
   # Part H reports the install's duration from it, so a resume keeps the first run's value.
   if [[ -z $(state_get install.started) ]]; then state_set install.started "$EPOCHSECONDS"; fi

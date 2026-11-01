@@ -17,6 +17,9 @@ setup() {
   mkdir -p "$BATS_TEST_TMPDIR/by-id" "$GI_HOST_ROOT/sys/block/gitestdisk/queue"
   ln -s "$DISK" "$BATS_TEST_TMPDIR/by-id/nvme-Test"
   echo 0 > "$GI_HOST_ROOT/sys/block/gitestdisk/queue/rotational"
+  mkdir -p "$GI_HOST_ROOT/sys/class/block/gitestdisk1" "$GI_HOST_ROOT/sys/class/block/gitestdisk5"
+  echo 1 > "$GI_HOST_ROOT/sys/class/block/gitestdisk1/partition"
+  echo 5 > "$GI_HOST_ROOT/sys/class/block/gitestdisk5/partition"
   BYID=$BATS_TEST_TMPDIR/by-id/nvme-Test
   CFG[disk]=$BYID
   CFG[users]=larry
@@ -98,6 +101,7 @@ blkid -p -s UUID -o value ${DISK}2" ]
   [ "$(state_get disk.ssd)" = yes ]
   [ -z "$(state_get disk.swapfile)" ]
   [ "$(state_get disk.stage)" = mounted ]
+  [ "$(state_get disk.esp_part)" = 1 ]
   grep -qx 'disk.root_uuid=uuid-root' "$T/var/lib/gentooinstall/state"
   grep -qx 'filesystem=ext4' "$T/var/lib/gentooinstall/config"
 }
@@ -122,6 +126,73 @@ lookup after: udevadm settle" ]
   [ "$(cat "$STUB_STDIN_DIR/sfdisk")" = "label: gpt
 size=1GiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=gentooinstall-esp
 type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name=gentooinstall-root" ]
+}
+
+@test "free space: ESP and root fill the largest free space, aligned, and no other partition is touched" {
+  CFG[disk_mode]=free
+  export STUB_STDIN_DIR=$BATS_TEST_TMPDIR/stdin
+  mkdir -p "$STUB_STDIN_DIR"
+  # Windows' partitions 1 to 4 stay; the new ones come out as 5 and 6.
+  hw_disk_free() { echo "gpt 42182600 62674944 512"; }
+  TREE="$DISK disk "$'\n'"${DISK}3 part "$'\n'"${DISK}5 part "$'\n'"${DISK}6 part "
+  LABELS="${DISK}3 Basic data partition"$'\n'"${DISK}5 gentooinstall-esp"$'\n'"${DISK}6 gentooinstall-root"
+  run in_step step_disk
+  [ "$status" -eq 0 ]
+  [ "$(calls "$destructive")" = "sfdisk --append --backup --backup-file $GI_RUN_DIR/gpt-backup $BYID
+wipefs --all ${DISK}5 ${DISK}6
+mkfs.vfat -F 32 -n ESP ${DISK}5
+mkfs.ext4 -L root ${DISK}6" ]
+  [ "$(cat "$STUB_STDIN_DIR/sfdisk")" = "start=42182656, size=2097152, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=gentooinstall-esp
+start=44279808, size=60575744, type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name=gentooinstall-root" ]
+  [ "$(state_get disk.esp_part)" = 5 ]
+}
+
+@test "free space: no GPT, an earlier install's partitions or too little room stop before anything is written" {
+  CFG[disk_mode]=free
+  hw_disk_free() { echo "dos 2048 100000000 512"; }
+  run in_step step_disk
+  [ "$status" -ne 0 ]
+  [[ $output == *"has no GPT partition table"* ]]
+  hw_disk_free() { echo "gpt 2048 100000000 512"; }
+  lsblk() { if [[ $* == "-nro PARTLABEL $DISK" ]]; then echo gentooinstall-root; else fake_lsblk "$@"; fi; }
+  run in_step step_disk
+  [ "$status" -ne 0 ]
+  [[ $output == *"already has partitions from an earlier gentooinstall run"* ]]
+  lsblk() { fake_lsblk "$@"; }
+  hw_disk_free() { echo "gpt 2048 40000000 512"; }
+  run in_step step_disk
+  [ "$status" -ne 0 ]
+  [[ $output == *"Gentoo needs at least 21 GiB in one piece"* ]]
+  [ -z "$(calls "$destructive")" ]
+}
+
+@test "Windows' ESP is found by mounting each other ESP read-only, once" {
+  local dir=$GI_RUN_DIR/esp-probe
+  # Ours, a Linux root, then Windows' ESP. -r escapes the spaces in a label.
+  lsblk() {
+    [[ $* == "-nrpo NAME,PARTTYPE,PARTUUID,UUID,PARTLABEL" ]] || return 1
+    printf '%s\n' "${DISK}1 c12a7328-f81f-11d2-ba4b-00a0c93ec93b 1111-p 1111-f gentooinstall-esp" \
+      "${DISK}2 4f68bce3-e8cd-4db1-96e7-fbcaf984b709 2222-p 2222-f gentooinstall-root" \
+      "${DISK}3 C12A7328-F81F-11D2-BA4B-00A0C93EC93B 3333-p 3333-f EFI\x20system\x20partition"
+  }
+  mkdir -p "$dir/EFI/Microsoft/Boot"
+  touch "$dir/EFI/Microsoft/Boot/bootmgfw.efi"
+  run disk_windows_esp
+  [ "$output" = "3333-p 3333-f" ]
+  [ "$(calls 'mount|umount')" = "mount -o ro -t vfat ${DISK}3 $dir
+umount $dir" ]
+  [ "$(state_get windows.esp)" = "3333-p 3333-f" ]
+  # The answer is kept, so later steps mount nothing.
+  : > "$STUB_LOG"
+  run disk_windows_esp
+  [ "$output" = "3333-p 3333-f" ]
+  [ ! -s "$STUB_LOG" ]
+  # Without bootmgfw.efi there's no Windows, and that's kept too.
+  rm "$dir/EFI/Microsoft/Boot/bootmgfw.efi"
+  state_set windows.esp ''
+  run disk_windows_esp
+  [ -z "$output" ]
+  [ "$(state_get windows.esp)" = none ]
 }
 
 @test "LUKS2 and btrfs with a swap file: passphrase on stdin only, subvolumes, mounts and swap" {

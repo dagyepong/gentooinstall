@@ -370,6 +370,20 @@ _hw_disk_summary() { # PARTS WINDOWS FSTYPE...
   printf '%s\n' "${s%, }"
 }
 
+# Prints "PTTYPE START SECTORS SECTOR_SIZE" for DISK's largest unpartitioned space, counted in its
+# own sectors. PTTYPE is gpt, dos or none; START and SECTORS are 0 when nothing is free.
+hw_disk_free() { # /dev/disk/by-id/... or /dev/disk/by-path/...
+  local dev pt ss start n best=0 at=0
+  dev=$(readlink -f -- "$GI_HOST_ROOT$1") || return 1
+  dev=${dev##*/}
+  pt=$(lsblk -dno PTTYPE -- "/dev/$dev") || return 1
+  ss=$(< "$GI_HOST_ROOT/sys/block/$dev/queue/logical_block_size") || return 1
+  while read -r start _ n _; do
+    if [[ $start =~ ^[0-9]+$ && $n =~ ^[0-9]+$ ]] && ((n > best)); then best=$n at=$start; fi
+  done < <(LC_ALL=C sfdisk -F -- "/dev/$dev" 2> /dev/null)
+  printf '%s %s %s %s\n' "${pt:-none}" "$at" "$best" "$ss"
+}
+
 hw_disk_size_bytes() { # /dev/disk/by-id/... or /dev/disk/by-path/...
   local dev f
   [[ -e $GI_HOST_ROOT$1 ]] || return 1

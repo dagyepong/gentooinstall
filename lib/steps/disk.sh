@@ -2,17 +2,19 @@
 # Disk step: wipe, partition, encrypt, format and mount the chosen disk; mounting for --resume.
 
 # Partitions get GPT names, so disk_resume_mount finds the install without any saved state:
-#   gentooinstall-esp   partition 1, EFI System, 1 GiB, FAT32 labeled ESP, mounted at /efi
-#   gentooinstall-root  partition 2, Linux root (x86-64), the rest, filesystem labeled root
+#   gentooinstall-esp   EFI System, 1 GiB, FAT32 labeled ESP, mounted at /efi
+#   gentooinstall-root  Linux root (x86-64), the rest, filesystem labeled root
+# With disk_mode=wipe they are partitions 1 and 2 of a new GPT. With free they go into the largest
+# unpartitioned space of the disk's GPT, and every other partition stays as it was.
 # The state key disk.stage (partitioned, formatted, mounted) records progress. A retry skips the
 # stages already finished, and once root is mounted nothing destructive runs again.
 
 step_define disk "Disk preparation" \
-  "Wipe the chosen disk, create a GPT with an EFI system partition and a root partition, encrypt root with LUKS2 if chosen, make the filesystems and mount them where the new system is built." \
+  "Wipe the chosen disk and create a GPT, or use the free space of the disk's GPT, for an EFI system partition and a root partition. Encrypt root with LUKS2 if chosen, make the filesystems and mount them where the new system is built." \
   "https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Disks"
 
 step_disk() {
-  local dev uuid luks='' ssd=no esp part root_dev
+  local dev uuid luks='' ssd=no esp espn part root_dev
   [[ -n ${CFG[disk]:-} ]] || die "No disk chosen."
   dev=$(readlink -f -- "${CFG[disk]}")
   # A resume's state comes from the target, which gets it only after root is mounted. Anything
@@ -25,12 +27,21 @@ step_disk() {
       # Before anything is wiped, so a missing passphrase can't stop the step halfway.
       if [[ ${CFG[encryption]} == luks2 && -z ${SECRET[luks_passphrase]:-} ]]; then die "The LUKS passphrase is missing."; fi
       _disk_check_free "$dev"
-      if [[ -z $(state_get disk.stage) ]]; then _disk_partition "$dev"; fi
+      if [[ -n $(state_get disk.stage) ]]; then
+        :
+      elif [[ ${CFG[disk_mode]} == free ]]; then
+        _disk_partition_free "$dev"
+      else
+        _disk_partition "$dev"
+      fi
       ;;
   esac
   # Looked up on every run: kernel names saved before a retry or a reboot may now be another disk's.
   esp=$(dry_value '<ESP partition>' _disk_part "$dev" gentooinstall-esp)
   part=$(dry_value '<root partition>' _disk_part "$dev" gentooinstall-root)
+  # The bootloader step's firmware entry names it.
+  espn=$(dry_value 1 cat -- "${GI_HOST_ROOT:-}/sys/class/block/${esp##*/}/partition") || die "Can't read the partition number of $esp."
+  state_set disk.esp_part "$espn"
   root_dev=$part
   if [[ ${CFG[encryption]} == luks2 ]]; then root_dev=/dev/mapper/root; fi
   if [[ $(state_get disk.stage) == partitioned ]]; then
@@ -100,6 +111,28 @@ _disk_partition() { # DEV
   run_cmd wipefs --all "${CFG[disk]}"
   run_stdin $'label: gpt\nsize=1GiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=gentooinstall-esp\ntype=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name=gentooinstall-root\n' \
     sfdisk "${CFG[disk]}"
+  run_cmd udevadm settle
+  state_set disk.stage partitioned
+}
+
+# Adds the ESP and root to the largest free space of DEV's GPT, 1 MiB aligned, and touches
+# nothing else. sfdisk saves the table sectors it changes in the run directory first.
+_disk_partition_free() { # DEV
+  local dev=$1 pt start n ss align first esp rstart rn
+  read -r pt start n ss < <(hw_disk_free "${CFG[disk]}") || die "Can't read the partition table of $dev."
+  [[ $pt == gpt ]] || die "$dev has no GPT partition table, so there's no free space to install into. Choose to erase the whole disk instead."
+  # Two sets of these names would make every later lookup ambiguous.
+  if lsblk -nro PARTLABEL "$dev" | grep -xE 'gentooinstall-(esp|root)' > /dev/null; then
+    die "$dev already has partitions from an earlier gentooinstall run. Delete them, or erase the whole disk."
+  fi
+  align=$((1048576 / ss)) esp=$((1073741824 / ss))
+  first=$(((start + align - 1) / align * align))
+  rstart=$((first + esp))
+  rn=$(((start + n - rstart) / align * align))
+  ((rn > 0 && rn * ss >= 20 * 1024 ** 3)) || die "The largest free space on $dev is too small: Gentoo needs at least 21 GiB in one piece."
+  run_stdin "start=$first, size=$esp, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=gentooinstall-esp
+start=$rstart, size=$rn, type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name=gentooinstall-root
+" sfdisk --append --backup --backup-file "$GI_RUN_DIR/gpt-backup" "${CFG[disk]}"
   run_cmd udevadm settle
   state_set disk.stage partitioned
 }
@@ -251,6 +284,27 @@ disk_resume_mount() {
     _disk_mount_all "$root_dev" "$esp" "$fs" file
     if ! _disk_swap_active "$GI_TARGET$swapfile"; then run_cmd swapon "$GI_TARGET$swapfile"; fi
   fi
+}
+
+# Prints "PARTUUID FSUUID" of an EFI system partition other than the install's own that holds
+# Windows' boot manager, or nothing. The first call mounts each one read-only to look; the answer
+# stays in the state. A dry run mounts nothing, so it finds nothing.
+disk_windows_esp() {
+  local saved name type puuid uuid label dir=$GI_RUN_DIR/esp-probe found=''
+  saved=$(state_get windows.esp)
+  if [[ -z $saved ]] && ((!GI_DRY_RUN)); then
+    while read -r name type puuid uuid label; do
+      [[ ${type,,} == c12a7328-f81f-11d2-ba4b-00a0c93ec93b && $label != gentooinstall-esp && -n $uuid ]] || continue
+      run_cmd mkdir -p "$dir"
+      run_cmd mount -o ro -t vfat "$name" "$dir" || continue
+      if [[ -f $dir/EFI/Microsoft/Boot/bootmgfw.efi ]]; then found="$puuid $uuid"; fi
+      run_cmd umount "$dir"
+      [[ -z $found ]] || break
+    done < <(lsblk -nrpo NAME,PARTTYPE,PARTUUID,UUID,PARTLABEL)
+    saved=${found:-none}
+    state_set windows.esp "$saved"
+  fi
+  if [[ -n $saved && $saved != none ]]; then printf '%s\n' "$saved"; fi
 }
 
 # Opens PART as /dev/mapper/root unless that is open already.

@@ -6,7 +6,8 @@ bats_require_minimum_version 1.5.0
 setup() {
   load helpers
   gi_setup
-  gi_load core ui config state kernel
+  gi_load core ui config state disk kernel
+  state_set windows.esp none
   cfg_defaults_apply
   state_set disk.root_uuid ROOTUUID
   state_set disk.luks_uuid LUKSUUID
@@ -424,6 +425,20 @@ limine_menu() { # VERSION...
   run limine_plugin add
   [ "$status" -ne 0 ]
   [ "$(cat "$GI_TARGET/efi/limine.conf")" = "$(limine_menu 6.18.9)" ]
+}
+
+@test "Limine plugin: Windows comes last, chainloaded from its own ESP" {
+  CFG[bootloader]=limine
+  state_set windows.esp '3333-p 3333-f'
+  step_kernel_portage
+  shellcheck "$GI_TARGET/etc/kernel/install.d/95-limine.install"
+  bls_full_entry 6.18.10
+  limine_plugin add
+  [ "$(cat "$GI_TARGET/efi/limine.conf")" = "$(limine_menu 6.18.10)
+
+/Windows
+    protocol: efi
+    path: guid(3333-p):/EFI/Microsoft/Boot/bootmgfw.efi" ]
 }
 
 @test "Limine plugin: no initrd means no module_path, an entry without linux is left out, options lines join" {

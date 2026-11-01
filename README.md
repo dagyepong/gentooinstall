@@ -2,9 +2,9 @@
 
 A guided installer for Gentoo Linux, like Arch's `archinstall`. You answer a few questions in a menu, and it installs Gentoo the way the [AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64) does, using prebuilt packages wherever it can.
 
-**It erases the whole disk you pick.**
+**It erases the whole disk you pick**, unless you install into its free space, next to Windows or another system (see [Next to Windows](#next-to-windows)).
 
-Status: early. Tested in virtual machines, not yet on real hardware.
+Status: early. Tested in virtual machines and on one laptop.
 
 ## What you need
 
@@ -24,19 +24,30 @@ Status: early. Tested in virtual machines, not yet on real hardware.
    ./gentooinstall
    ```
 
-4. Go through the menu, then start the install.
+4. Go through the menu: arrows move, Space selects, Enter confirms, Esc goes back. Every setting marked `[!]` needs an answer. Then start the install.
 5. When it's done, remove the USB stick and reboot. `first-steps.txt` in your home folder says what to do next.
 
 ## What you can choose
 
+- The whole disk, or its free space beside another system
 - OpenRC or systemd
 - ext4, xfs or btrfs, with optional disk encryption
 - systemd-boot, GRUB or Limine
 - A desktop: KDE Plasma, GNOME, Xfce, Cinnamon or Budgie
 - Or a window manager: i3, Sway, Hyprland, niri, MangoWM, dwm or dwl
 - Or no desktop at all
+- A login screen: graphical, text (tuigreet), or none
+- Extra packages, picked from a searchable list
 
 Budgie, Hyprland, niri and MangoWM come from community overlays that Gentoo doesn't review, and they build from source.
+
+## Next to Windows
+
+1. In Windows, open Disk Management and shrink its partition to leave at least 22,000 MB free (42,000 MB with a desktop).
+2. If Windows uses BitLocker or device encryption, save its recovery key first (https://aka.ms/myrecoverykey). With Secure Boot off, Windows asks for it.
+3. In the installer, set **Install to** to **Free space on the disk**. Nothing else on the disk is changed.
+
+Windows then appears in the boot menu, and the clock stays right in both systems. With BitLocker, start Windows from the firmware boot menu instead (F12, F11 or Esc at power-on), or it asks for the recovery key each time.
 
 ## If something goes wrong
 

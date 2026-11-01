@@ -103,7 +103,7 @@ Safety net. When `GI_TEST=1`, `run_cmd` and friends (including `run_interactive`
 
 ## UI (`lib/ui.sh`)
 
-`ui_init` picks `dialog` when it's installed, stdin, stdout and stderr are terminals and `--no-tui` wasn't given, else `plain`. Every widget works inside `$(...)`. In `dialog` mode results go through `--output-fd 1` and dialog draws on the terminal. In `plain` mode prompts go to stderr, answers come from stdin, menus are numbered and show TAG and ITEM in two columns like dialog (only ITEM when every tag just repeats its item), Enter takes the default, `-` clears an input's default, `b` means back, `x` is the extra button and `?` shows help.
+`ui_init` picks `dialog` when it's installed, stdin, stdout and stderr are terminals and `--no-tui` wasn't given, else `plain`. For `dialog` it exports `DIALOGRC=lib/dialogrc`, white text on black. Every widget works inside `$(...)`. In `dialog` mode results go through `--output-fd 1` and dialog draws on the terminal. In `plain` mode prompts go to stderr, answers come from stdin, menus are numbered and show TAG and ITEM in two columns like dialog (only ITEM when every tag just repeats its item), Enter takes the default, `-` clears an input's default, `b` means back, `x` is the extra button and `?` shows help.
 
 Return codes for all widgets: 0 OK, 1 back (Back button, Esc or `b`), 3 extra button. On the extra button nothing is printed. When dialog itself fails (most often a box too tall for the screen, which dialog refuses to draw), the widget logs dialog's message and asks the same question in plain text, so a caller that repeats on back can't spin. If stdin closes in plain mode, the widget prints an error and stops the whole installer (SIGTERM to the main process and every subshell in between), so a caller that retries on failure can't spin forever. In a test, running out of piped answers fails that test.
 
@@ -114,6 +114,7 @@ Return codes for all widgets: 0 OK, 1 back (Back button, Esc or `b`), 3 extra bu
 - `ui_password_twice TITLE TEXT` asks twice until both match and refuses an empty value, prints the value.
 - `ui_yesno [--defaultno] [--yes LABEL] [--no LABEL] TITLE TEXT` returns 0 for yes, 1 for no. The labels rename the buttons.
 - `ui_msg TITLE TEXT`, `ui_textbox TITLE FILE`. The textbox's only button reads OK.
+- `ui_info TITLE TEXT` shows TEXT and returns at once, for something that takes a while.
 - `ui_confirm_text TITLE TEXT EXPECTED` returns 0 only after the user types EXPECTED exactly, 1 on back.
 - `ui_backtitle` prints the top line: `gentooinstall 0.1.0 | UEFI | 16 GiB RAM | 8 threads | online`.
 
@@ -136,6 +137,7 @@ File format and rules are in `SPEC.md` under "Config file". Keys, values and def
 | `format` | `1` | `1` |
 | `keymap` | console keymap name | `us` |
 | `disk` | `/dev/disk/by-id/...`, or `/dev/disk/by-path/...` for a disk with no by-id link (a QEMU virtio disk without a serial) | required |
+| `disk_mode` | `wipe` `free` | `wipe`. `free` installs into the largest free space of the disk's GPT; `hw_disk_free` reports it |
 | `filesystem` | `ext4` `xfs` `btrfs` | `ext4` |
 | `encryption` | `none` `luks2` | `none` |
 | `luks_discard` | `yes` `no` | `yes` |
@@ -143,7 +145,7 @@ File format and rules are in `SPEC.md` under "Config file". Keys, values and def
 | `init` | `openrc` `systemd` | `openrc` |
 | `desktop` | `plasma` `gnome` `xfce` `budgie` `cinnamon` `i3` `sway` `hyprland` `niri` `mangowm` `dwm` `dwl` `none` | `plasma` |
 | `gnome_variant` | `light` `full` | `light` |
-| `display_manager` | `auto` `none` | `auto` (SDDM for Plasma, GDM for GNOME, LightDM for Xfce, Budgie and Cinnamon; the window managers never get one) |
+| `display_manager` | `auto` `none` `tuigreet` `gtkgreet` `sddm` `gdm` `lightdm` | `auto` (SDDM for Plasma, GDM for GNOME, LightDM for Xfce, Budgie and Cinnamon, none for the window managers). `cfg_login_screens DESKTOP` lists the ones a desktop offers, `cfg_login_screen` resolves `auto` |
 | `bootloader` | `systemd-boot` `grub` `limine` | `systemd-boot` |
 | `kernel` | `gentoo-kernel-bin` `gentoo-kernel` | `gentoo-kernel-bin` |
 | `nvidia_driver` | `proprietary` `nouveau` | `proprietary` |
@@ -157,7 +159,7 @@ File format and rules are in `SPEC.md` under "Config file". Keys, values and def
 | `fwupd` | `yes` `no` | `yes` when `HW[laptop]=yes` |
 | `sshd` | `yes` `no` | `no` |
 | `hostname` | RFC 1123 label | `gentoo` |
-| `timezone` | `Region/City` or `UTC` | `UTC` |
+| `timezone` | `Region/City` or `UTC`, picked from `lib/timezones.tsv` | `UTC` |
 | `locales` | space-separated, like `en_US.UTF-8` | `en_US.UTF-8` |
 | `lang` | one of `locales` | first of `locales` |
 | `root` | `password` `locked` | `password` |
@@ -174,7 +176,7 @@ File format and rules are in `SPEC.md` under "Config file". Keys, values and def
 | `browser` | `firefox-bin` `chromium` `none` | `firefox-bin` |
 | `fonts_cjk` | `yes` `no` | `no` |
 | `media_keys` | `yes` `no` | `no` |
-| `packages` | space-separated package atoms | empty |
+| `packages` | space-separated package atoms, picked in fzf | empty |
 | `explain` | `yes` `no` | `no` |
 
 Secrets, kept in `SECRET`: `luks_passphrase` (with `luks2`), `root_password` (with `root=password`), `user.<name>.password` (each user), `wifi_psk` (with `network=networkmanager`, `keep_wifi=yes` and a `wifi_ssid`, since only NetworkManager gets the saved network; an empty value means an open network). A secret counts as given once its key exists in `SECRET`.
@@ -183,12 +185,12 @@ Usernames match `^[a-z_][a-z0-9_-]{0,31}$` and must not be a system account or g
 
 Functions:
 
-- `cfg_defaults_apply` fills every key that isn't set yet with its default, using `HW` for the hardware-dependent ones, `lang` from the first of `locales`, and `user.<name>.admin`/`shell` for each user. It never overwrites a value, so it runs after pre-flight and after the config file was loaded. `steps_run` calls it again, so steps can rely on every key being set.
+- `cfg_defaults_apply` fills every key that isn't set yet with its default, using `HW` for the hardware-dependent ones, `lang` from the first of `locales`, and `user.<name>.admin`/`shell` for each user. It never overwrites a value, so it runs after pre-flight and after the config file was loaded. `cfg_defaults_apply ask`, for a fresh interactive run, fills only the keys the questions don't ask (`format`, `disk`, `wifi_ssid`, `users`, `packages`, `mirror`, `cflags`, `makeopts`, `emerge_jobs`, the per-user keys); the questions mark the rest `[!] not set`. `steps_run` calls it again, so steps can rely on every key being set.
 - `cfg_set KEY VALUE` (validates, returns 1 with a message on stderr on bad input or a locked key).
 - `cfg_validate KEY VALUE` prints `KEY: problem` on stdout and returns 1 when invalid, so callers can capture it with `$(...)`. It never echoes the value.
 - `cfg_load FILE` and `cfg_load_secrets FILE` parse files (never source them). They collect every error and report them together on stderr as `FILE: line N: ...`, then return 1. Duplicate and unknown keys are errors, and so are `user.<name>.*` keys for a name not in `users`. A CR before the newline is dropped, so files with Windows line endings work; every value is a single line. Secrets files must be root-owned with mode 600 (owned by the current user when `GI_TEST=1`); their error messages never contain values.
 - `cfg_save [FILE]` writes every set non-secret key, in table order, followed by the per-user keys for each user in `users`. FILE defaults to `$GI_RUN_DIR/config`. Returns 1, leaving no temp file, when it can't write the file. A step that changes answers (the preview step) changes `CFG` and calls `cfg_save` with no FILE; the runner reloads that file after every step.
-- `cfg_check_rules` prints `error: ...` and `warn: ...` lines on stdout and returns 1 when there's an error. It re-validates every key, requires `disk` and at least one user, checks that `lang` is one of `locales`, and applies the v1 combination rules in `SPEC.md`: LUKS needs systemd-boot or Limine, a desktop needs a 40 GiB disk (through `hw_disk_size_bytes`), systemd-networkd needs systemd, locking root needs an admin user, a desktop without NetworkManager warns, Secure Boot on is an error, and less than 4 GiB of RAM (rounded to the nearest GiB, as `MemTotal` is a little under the installed RAM) warns with a desktop or `gentoo-kernel`. "A display manager requires a desktop" can't fail with the v1 values: `display_manager=auto` means none without a desktop.
+- `cfg_check_rules` prints `error: ...` and `warn: ...` lines on stdout and returns 1 when there's an error. It re-validates every key, requires `disk` and at least one user, checks that `lang` is one of `locales`, and applies the v1 combination rules in `SPEC.md`: LUKS needs systemd-boot or Limine, a desktop needs a 40 GiB disk (through `hw_disk_size_bytes`), systemd-networkd needs systemd, locking root needs an admin user, a desktop without NetworkManager warns, Secure Boot on is an error, less than 4 GiB of RAM (rounded to the nearest GiB, as `MemTotal` is a little under the installed RAM) warns with a desktop or `gentoo-kernel`, and a login screen other than `auto` must be one `cfg_login_screens` offers for the desktop (only `none` without one).
 - `cfg_secrets_missing [STEP_IDS...]` prints the secret keys still needed by the given pending steps.
 - `cfg_secret_validate KEY VALUE` prints `KEY: problem` on stdout and returns 1 when VALUE can't be that secret, never echoing it: `wifi_psk` is empty (open network), 8 to 63 printable ASCII characters or 64 hex digits; the passwords and the LUKS passphrase must not be empty. `cfg_load_secrets` and the runner use it.
 - `cfg_lock KEY...`, `cfg_is_locked KEY`. Locked keys can't change after the disk step starts: `disk`, `filesystem`, `encryption`, `swap`, `init`.

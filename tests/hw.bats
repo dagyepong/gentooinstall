@@ -489,3 +489,28 @@ psk=\s\sa\\b\\sc'
   run hw_disk_size_bytes /dev/disk/by-id/ata-WDC_WD5000LPCX_WD-WX12A3456789
   [ "$status" -eq 1 ]
 }
+
+@test "hw_disk_free names the table type and the largest free space, in the disk's own sectors" {
+  fake_disks
+  put sys/block/nvme0n1/queue/logical_block_size 4096
+  lsblk() { echo gpt; }
+  # sfdisk -F as util-linux 2.42 prints it.
+  cat > "$STUB_OUT_DIR/sfdisk" << 'EOF'
+Unpartitioned space /dev/nvme0n1: 39.2 GiB, 42092969472 bytes, 82212831 sectors
+Units: sectors of 1 * 4096 = 4096 bytes
+Sector size (logical/physical): 4096 bytes / 4096 bytes
+
+    Start       End  Sectors  Size
+  5272832  13107199  7834368 29.9G
+ 13286400  15728634  2442235  9.3G
+EOF
+  run hw_disk_free /dev/disk/by-id/nvme-Samsung_SSD_980_1TB_S64ANS0T123456
+  [ "$status" -eq 0 ]
+  [ "$output" = "gpt 5272832 7834368 4096" ]
+  grep -qx 'sfdisk -F -- /dev/nvme0n1' "$STUB_LOG"
+  # No partition table, so nothing is free to install into.
+  lsblk() { echo; }
+  rm "$STUB_OUT_DIR/sfdisk"
+  run hw_disk_free /dev/disk/by-id/nvme-Samsung_SSD_980_1TB_S64ANS0T123456
+  [ "$output" = "none 0 0 4096" ]
+}

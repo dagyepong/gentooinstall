@@ -127,7 +127,7 @@ _kernel_limine_files() {
   echo 'sys-boot/limine ~amd64' | portage_file package.accept_keywords limine
   # A drop-in overrides only the layout in installkernel's /usr/lib/kernel/install.conf.
   echo 'layout=bls' | write_file /etc/kernel/install.conf.d/limine.conf
-  _kernel_limine_plugin | write_file /etc/kernel/install.d/95-limine.install 0755
+  _kernel_limine_plugin "$(disk_windows_esp)" | write_file /etc/kernel/install.d/95-limine.install 0755
   _kernel_limine_update_hook | write_file /etc/portage/env/sys-boot/limine
 }
 
@@ -159,13 +159,17 @@ post_pkg_postinst() {
 EOF
 }
 
-# After 90-loaderentry.install, which writes or removes the entry for this kernel.
-_kernel_limine_plugin() {
+# After 90-loaderentry.install, which writes or removes the entry for this kernel. With Windows
+# found, its boot manager is chainloaded from Windows' own ESP, named by its partition GUID.
+_kernel_limine_plugin() { # [WINDOWS_PARTUUID FSUUID]
   cat << 'EOF'
 #!/bin/bash
 # Written by gentooinstall. kernel-install runs this after every kernel install and removal. It
 # rewrites limine.conf on the ESP from the boot entries in loader/entries, newest kernel first.
 # Edits to limine.conf are lost at the next kernel update; change the settings here instead.
+EOF
+  printf 'windows=%s\n' "${1%% *}"
+  cat << 'EOF'
 [[ $1 == add || $1 == remove ]] || exit 0
 [[ $KERNEL_INSTALL_LAYOUT == bls ]] || exit 0
 esp=${KERNEL_INSTALL_BOOT_ROOT:?}
@@ -195,6 +199,9 @@ conf=$(
     for i in "${initrds[@]}"; do printf '    module_path: boot():%s\n' "$i"; done
     printf '    cmdline: %s\n' "$options"
   done <<< "$entries"
+  if [[ -n $windows ]]; then
+    printf '\n/Windows\n    protocol: efi\n    path: guid(%s):/EFI/Microsoft/Boot/bootmgfw.efi\n' "$windows"
+  fi
 )
 # Limine expands ${NAME} anywhere in its config, and a ${ without its } stops it at boot.
 if [[ $conf == *\$\{* ]]; then

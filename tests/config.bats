@@ -346,6 +346,38 @@ ok_config() {
   [ "$status" -eq 0 ]
 }
 
+@test "rule: the login screen must be one the desktop offers; auto goes with any" {
+  ok_config
+  CFG[desktop]=sway CFG[display_manager]=sddm
+  run cfg_check_rules
+  [ "$status" -eq 1 ]
+  [[ $output == *"error: The sddm login screen doesn't go with desktop=sway; pick one of: gtkgreet tuigreet none."* ]]
+  local dm
+  for dm in gtkgreet tuigreet none auto; do
+    CFG[display_manager]=$dm
+    run cfg_check_rules
+    [ "$status" -eq 0 ] || { echo "${CFG[display_manager]}: $output"; false; }
+  done
+  CFG[desktop]=plasma CFG[display_manager]=gtkgreet
+  run cfg_check_rules
+  [ "$status" -eq 1 ]
+  CFG[desktop]=none CFG[display_manager]=auto
+  run cfg_check_rules
+  [ "$status" -eq 0 ]
+}
+
+@test "disk_mode is wipe or free, wipe by default, and can't change once the disk step started" {
+  run cfg_validate disk_mode free
+  [ "$status" -eq 0 ]
+  run cfg_validate disk_mode keep
+  [ "$status" -eq 1 ]
+  cfg_defaults_apply
+  [ "${CFG[disk_mode]}" = wipe ]
+  cfg_lock disk_mode
+  run cfg_set disk_mode free
+  [ "$status" -eq 1 ]
+}
+
 @test "rule: locking root needs an admin user" {
   ok_config
   CFG[root]=locked CFG[user.larry.admin]=no

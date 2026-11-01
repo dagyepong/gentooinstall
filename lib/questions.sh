@@ -9,6 +9,7 @@ declare -gA GI_Q_TYPED=()
 GI_Q_PREVIEW=0
 
 questions_keymap() {
+  if ((!GI_YES)); then _q_controls; fi
   # On --resume a config's keymap is the new system's, which gi_resume loads after the disk is unlocked.
   if [[ -n ${CFG[keymap]:-} ]] && ((!${GI_RESUME:-0} || GI_YES)); then
     run_cmd loadkeys "${CFG[keymap]}" || die "Couldn't load the keymap ${CFG[keymap]} from the config. Fix keymap there, or leave it out to pick one from the list." 2
@@ -22,6 +23,18 @@ questions_keymap() {
     text="Pick the keyboard layout you chose when this install started. The disk passphrase and any passwords still needed are typed with it."
   fi
   until _q_keymap Quit "$text"; do _q_quit; done
+}
+
+# dialog's keys, before the first question.
+_q_controls() {
+  [[ $GI_UI == dialog ]] || return 0
+  ui_msg "Controls" "Up and Down   move through a list
+Space         select an option in a list
+Enter         confirm
+Tab           switch between the buttons
+Esc           go back
+
+[!] marks a setting that still needs an answer."
 }
 
 questions_run() {
@@ -107,7 +120,7 @@ _q_hub() { # returns 0 to go on, 1 on back (compile preview only)
 _q_section_help() {
   case $1 in
     Keyboard) echo "Keyboard: the console layout every password is typed with" ;;
-    Disk) echo "Disk: the disk to erase, filesystem, encryption, swap" ;;
+    Disk) echo "Disk: the whole disk or its free space, filesystem, encryption, swap" ;;
     System) echo "System: init system, kernel, bootloader" ;;
     Desktop) echo "Desktop: desktop, login screen, audio, Bluetooth, power, browser, fonts" ;;
     Network) echo "Network: network manager, Wi-Fi, hostname, SSH" ;;
@@ -119,10 +132,14 @@ _q_section_help() {
 }
 
 _q_summary() { # SECTION: one line for the hub
-  local wifi='' extra='' audio=${CFG[audio]#none} browser=''
+  local wifi='' extra='' audio=${CFG[audio]:-} browser=''
+  audio=${audio#none}
   case $1 in
     Keyboard) printf '%s' "${CFG[keymap]}" ;;
-    Disk) printf '%s, %s' "$(_q_disk_name)" "$(_q_layout)" ;;
+    Disk)
+      if [[ ${CFG[disk_mode]} == free ]]; then extra=" free space"; fi
+      printf '%s%s, %s' "$(_q_disk_name)" "$extra" "$(_q_layout)"
+      ;;
     System) _q_join "${CFG[init]}" "${CFG[kernel]}" "${CFG[bootloader]}" ;;
     Desktop)
       # Part H's rules, so the hub says what the desktop and hardware steps will install.
@@ -132,7 +149,8 @@ _q_summary() { # SECTION: one line for the hub
         "${CFG[power]#none}" "$browser"
       ;;
     Network)
-      if [[ ${CFG[keep_wifi]} == yes && ${CFG[network]} == networkmanager && -n ${CFG[wifi_ssid]} ]]; then
+      # Keep Wi-Fi is asked only with NetworkManager and a live network, so it may be unset.
+      if [[ ${CFG[keep_wifi]:-} == yes && ${CFG[network]} == networkmanager && -n ${CFG[wifi_ssid]} ]]; then
         wifi="keep Wi-Fi \"${CFG[wifi_ssid]}\""
       fi
       _q_join "${CFG[network]}" "${CFG[hostname]}" "$wifi" "$(_q_on sshd sshd)"
@@ -195,10 +213,11 @@ _q_keys() { # SECTION: prints KEY<TAB>LABEL<TAB>HELP for each setting it shows
   case $1 in
     Keyboard) _q_row keymap Keymap "The console keyboard layout" ;;
     Disk)
-      _q_row disk Disk "The disk to erase and install Gentoo on"
+      _q_row disk_mode "Install to" "The whole disk, or the free space beside what's on it"
+      _q_row disk Disk "The disk to install Gentoo on"
       _q_row filesystem Filesystem "The filesystem for the root partition"
       _q_row encryption Encryption "Encrypt the root partition with a passphrase"
-      if [[ ${CFG[encryption]} == luks2 ]]; then
+      if [[ ${CFG[encryption]:-} == luks2 ]]; then
         _q_row luks_discard "TRIM through LUKS" "Let the SSD know which blocks are free"
       fi
       _q_row swap Swap "Where memory goes when RAM is full"
@@ -213,18 +232,18 @@ _q_keys() { # SECTION: prints KEY<TAB>LABEL<TAB>HELP for each setting it shows
       ;;
     Desktop)
       _q_row desktop Desktop "The graphical desktop or window manager, or console only"
-      if [[ ${CFG[desktop]} == gnome ]]; then
+      if [[ ${CFG[desktop]:-} == gnome ]]; then
         _q_row gnome_variant "GNOME variant" "Just the GNOME desktop, or GNOME with its apps"
       fi
-      # The window managers have no login screen; they start from the console.
-      if [[ -n $(_q_login_screen) ]]; then
-        _q_row display_manager "Login screen" "A graphical login screen, or log in on the console"
+      # The console has nothing for a login screen to start.
+      if [[ ${CFG[desktop]:-none} != none ]]; then
+        _q_row display_manager "Login screen" "A graphical or text login screen, or log in on the console"
       fi
       _q_row audio Audio "The sound server"
       _q_row bluetooth Bluetooth "Bluetooth support"
       _q_row power Power "Battery and power-saving modes"
       # step_desktop_packages installs neither without a desktop.
-      if [[ ${CFG[desktop]} != none ]]; then
+      if [[ ${CFG[desktop]:-none} != none ]]; then
         _q_row browser Browser "The web browser to install"
         _q_row fonts_cjk "CJK fonts" "Fonts for Chinese, Japanese and Korean"
       fi
@@ -235,16 +254,19 @@ _q_keys() { # SECTION: prints KEY<TAB>LABEL<TAB>HELP for each setting it shows
     Network)
       _q_row network "Network manager" "What connects the new system to the network"
       # Only NetworkManager gets the saved network; the others would never use the key.
-      if [[ ${CFG[network]} == networkmanager && -n ${CFG[wifi_ssid]} ]]; then
+      if [[ ${CFG[network]:-} == networkmanager && -n ${CFG[wifi_ssid]} ]]; then
         _q_row keep_wifi "Keep Wi-Fi" "Save the live session's Wi-Fi network in the new system"
       fi
       _q_row hostname Hostname "The machine's name on the network"
       _q_row sshd "SSH server" "Log in from other machines over SSH"
       ;;
     Locale)
-      _q_row timezone Timezone "Region/City, like Europe/Berlin, or UTC"
+      _q_row timezone Timezone "The region and city whose time the clock shows"
       _q_row locales Locales "The languages and formats to generate"
-      _q_row lang LANG "The system language, one of the locales"
+      # It's picked from the locales.
+      if [[ -n ${CFG[locales]:-} ]]; then
+        _q_row lang LANG "The system language, one of the locales"
+      fi
       _q_row keymap Keymap "The console keyboard layout"
       ;;
     Users)
@@ -268,7 +290,7 @@ _q_keys() { # SECTION: prints KEY<TAB>LABEL<TAB>HELP for each setting it shows
       ;;
     Packages)
       _q_row binpkgs "Binary packages" "Download prebuilt packages instead of compiling"
-      _q_row packages "Extra packages" "More packages to install, as Portage atoms"
+      _q_row packages "Extra packages" "More packages to install, picked from Gentoo's list"
       _q_row tune "Tune for this machine" "CPU and GPU settings for this machine only"
       _q_row cflags "Compiler flags" "COMMON_FLAGS for packages built here"
       _q_row makeopts MAKEOPTS "How many compiler jobs run at once"
@@ -310,6 +332,11 @@ _q_section() { # SECTION: the submenu of one section's settings
 _q_need() { # KEY: prints "[!] why" when KEY still needs an answer
   local k=$1 u=${1#user.}
   u=${u%%.*}
+  # cfg_defaults_apply ask leaves the questions unset until they're answered.
+  if [[ -z ${CFG[$k]+x} && " ${GI_CFG_KEYS[*]} " == *" $k "* ]]; then
+    printf '[!] not set'
+    return 0
+  fi
   case $k in
     disk)
       if [[ -z ${CFG[disk]} ]]; then
@@ -341,20 +368,22 @@ _q_need() { # KEY: prints "[!] why" when KEY still needs an answer
 # True when the hub must ask for secret KEY. In the compile preview the runner asks once the step ends.
 _q_no_secret() { [[ -z ${SECRET[$1]+x} ]] && ((!GI_Q_PREVIEW)); }
 
-# The login screen display_manager=auto installs with the desktop, as part H's step does; nothing
-# for the window managers and the console.
-_q_login_screen() {
-  case ${CFG[desktop]} in
-    plasma) echo SDDM ;;
-    gnome) echo GDM ;;
-    xfce | budgie | cinnamon) echo LightDM ;;
+# A display_manager value as the menus name it.
+_q_dm_name() { # VALUE
+  case $1 in
+    sddm) echo "SDDM, graphical" ;;
+    gdm) echo "GDM, graphical" ;;
+    lightdm) echo "LightDM, graphical" ;;
+    gtkgreet) echo "gtkgreet, graphical" ;;
+    tuigreet) echo "tuigreet, text" ;;
+    none) echo "none, log in on the console" ;;
   esac
 }
 
 # What media_keys=yes installs, as part H's step does: the programs the window manager's shipped
 # config calls that nothing else installs. Nothing for the others; the full desktops have their own.
 _q_media_keys() {
-  case ${CFG[desktop]} in
+  case ${CFG[desktop]:-} in
     sway) echo "Sway's default config calls brightnessctl, playerctl and grim for the brightness, player and Print keys. Installing them builds 3 small packages from source." ;;
     hyprland) echo "Hyprland's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source." ;;
     niri) echo "Niri's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source." ;;
@@ -367,9 +396,10 @@ _q_value() { # KEY: the current value as the menus show it
   if [[ -z $v ]]; then
     case $k in
       disk) v=$(_q_disk_label) ;;
+      disk_mode) if [[ ${CFG[disk_mode]} == free ]]; then v="free space, keeping the partitions"; else v="the whole disk, erasing it"; fi ;;
       display_manager)
-        v=${CFG[display_manager]}
-        if [[ $v == auto ]]; then v+=" ($(_q_login_screen))"; fi
+        v=$(_q_dm_name "$(cfg_login_screen)")
+        if [[ ${CFG[display_manager]} == auto ]]; then v="auto: $v"; fi
         ;;
       audio)
         v=${CFG[audio]}
@@ -409,7 +439,7 @@ _q_join() { # WORD...: joins the non-empty ones with ", "
   printf '%s' "$out"
 }
 
-_q_on() { if [[ ${CFG[$1]} == yes ]]; then printf '%s' "$2"; fi; }
+_q_on() { if [[ ${CFG[$1]:-} == yes ]]; then printf '%s' "$2"; fi; }
 
 _q_hw_yes() { if [[ ${HW[$1]:-} == yes ]]; then echo yes; else echo no; fi; }
 
@@ -435,6 +465,11 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
       if [[ ${CFG[keymap]} != "$old" ]]; then _q_keymap_changed; fi
       ;;
     disk) _q_disk ;;
+    disk_mode)
+      _q_radio disk_mode "Install to" "Free space keeps the disk's partitions, so another system keeps working. If Windows uses BitLocker, have its recovery key ready: with Secure Boot off, Windows asks for it at its next start." "" \
+        wipe "The whole disk." "Erases everything on it." \
+        free "Free space on the disk." "Keeps its partitions, like Windows. Shrink one from its own system first."
+      ;;
     filesystem)
       _q_radio filesystem "Root filesystem" "" ext4 \
         ext4 "The standard Linux filesystem." "Mature and simple; the safe choice." \
@@ -466,7 +501,7 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
         openrc "Gentoo's own init." "Simple and Gentoo's default; switching later means rebuilding many packages." \
         systemd "What most other distros use." "Brings journald, timers and systemd-networkd." ||
         return 1
-      if [[ ${CFG[init]} != systemd && ${CFG[network]} == networkd ]]; then
+      if [[ ${CFG[init]} != systemd && ${CFG[network]:-} == networkd ]]; then
         cfg_set network networkmanager
         ui_msg "Network manager" "systemd-networkd needs systemd, so the network manager is now NetworkManager."
       fi
@@ -497,19 +532,25 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
       ;;
     desktop)
       _q_radio desktop "Desktop" "" plasma \
-        plasma "KDE Plasma." "A full desktop with a taskbar and start menu, and the SDDM login screen." \
-        gnome "GNOME." "A clean, simple desktop with the GDM login screen." \
-        xfce "Xfce." "A light, classic desktop with the LightDM login screen." \
-        budgie "Budgie, with LightDM." "From a third-party overlay that Gentoo doesn't review. Builds from source." \
-        cinnamon "Cinnamon." "Linux Mint's classic desktop with the LightDM login screen." \
-        i3 "i3, tiling for X11." "A window manager with a bar. No login screen: start it from the console." \
-        sway "Sway, tiling for Wayland." "Like i3, on Wayland. No login screen: start it from the console." \
+        plasma "KDE Plasma." "A full desktop with a taskbar and start menu." \
+        gnome "GNOME." "A clean, simple desktop." \
+        xfce "Xfce." "A light, classic desktop." \
+        budgie "Budgie." "From a third-party overlay that Gentoo doesn't review. Builds from source." \
+        cinnamon "Cinnamon." "Linux Mint's classic desktop." \
+        i3 "i3, tiling for X11." "A window manager with a bar." \
+        sway "Sway, tiling for Wayland." "Like i3, on Wayland." \
         hyprland "Hyprland, tiling for Wayland." "From a third-party overlay that Gentoo doesn't review. Builds from source." \
         niri "Niri, scrolling tiles, Wayland." "From GURU, a user overlay that Gentoo doesn't review. Builds from source." \
         mangowm "MangoWM, tiling for Wayland." "From GURU, a user overlay that Gentoo doesn't review. Builds from source." \
-        dwm "dwm, minimal tiling for X11." "Configured by rebuilding it. No login screen: start it from the console." \
-        dwl "dwl, dwm for Wayland." "Configured by rebuilding it. No login screen: start it from the console." \
-        none "Console only." "No graphical desktop."
+        dwm "dwm, minimal tiling for X11." "Configured by rebuilding it." \
+        dwl "dwl, dwm for Wayland." "Configured by rebuilding it." \
+        none "Console only." "No graphical desktop." ||
+        return 1
+      # Another desktop's login screen needs a new answer.
+      if [[ -n ${CFG[display_manager]+x} && ${CFG[display_manager]} != auto &&
+        " $(cfg_login_screens "${CFG[desktop]}") " != *" ${CFG[display_manager]} "* ]]; then
+        unset 'CFG[display_manager]'
+      fi
       ;;
     gnome_variant)
       _q_radio gnome_variant "GNOME variant" "" light \
@@ -517,9 +558,19 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
         full "GNOME with its apps." "gnome-base/gnome: the whole set of GNOME applications."
       ;;
     display_manager)
-      _q_radio display_manager "Login screen" "" auto \
-        auto "A graphical login screen." "SDDM with Plasma, GDM with GNOME, LightDM with Xfce, Budgie and Cinnamon." \
-        none "Log in on the console." "Start the desktop yourself after a text login."
+      # The desktop stage3 has Rust already.
+      local rec=tuigreet greetd="Builds the small greetd daemon from source."
+      local -a gui=()
+      case ${CFG[desktop]} in
+        plasma) gui=(sddm "SDDM, graphical." "KDE's login screen.") rec=sddm ;;
+        gnome) gui=(gdm "GDM, graphical." "GNOME's login screen.") rec=gdm ;;
+        xfce | budgie | cinnamon) gui=(lightdm "LightDM, graphical." "A light login screen with a GTK greeter.") rec=lightdm ;;
+        *) gui=(gtkgreet "gtkgreet, graphical." "A login box shown in Sway. $greetd") ;;
+      esac
+      _q_radio display_manager "Login screen" "" "$rec" \
+        "${gui[@]}" \
+        tuigreet "tuigreet, text." "A login prompt on the console. $greetd" \
+        none "No login screen." "Log in on the console and start the desktop yourself."
       ;;
     audio)
       _q_radio audio "Audio" "" pipewire \
@@ -555,14 +606,14 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
       # Niri comes from GURU already; for sway and Hyprland brightnessctl adds it.
       if [[ ${CFG[desktop]} != niri ]]; then help="brightnessctl is from GURU, a user overlay that Gentoo doesn't review."; fi
       # Their pactl and wpctl need the sound server.
-      if [[ ${CFG[audio]} != pipewire ]]; then vol="With Audio set to none, the volume keys do nothing either way."; fi
+      if [[ ${CFG[audio]:-} != pipewire ]]; then vol="With Audio set to none, the volume keys do nothing either way."; fi
       _q_radio media_keys "Media keys" "$(_q_media_keys) $vol" no \
         no "Leave them out." "Those keys do nothing until you install the programs." \
         yes "Install them." "$help"
       ;;
     network)
       local -a nd=()
-      if [[ ${CFG[init]} == systemd ]]; then nd=(networkd "systemd-networkd." "Wired DHCP only, built into systemd."); fi
+      if [[ ${CFG[init]:-} == systemd ]]; then nd=(networkd "systemd-networkd." "Wired DHCP only, built into systemd."); fi
       _q_radio network "Network manager" "" networkmanager \
         networkmanager "NetworkManager." "Wi-Fi and wired, with an applet in the desktop." \
         dhcpcd "dhcpcd." "Wired networks only, nothing else." "${nd[@]}"
@@ -592,15 +643,13 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
         no "No SSH server." "Nobody can log in over the network." \
         yes "Start an SSH server." "Log in from another machine; root login stays off."
       ;;
-    timezone)
-      _q_input timezone "Timezone" "Type Region/City, like Europe/Berlin, or UTC. The live system has no zone list, so the name is checked against the stage3 later."
-      ;;
+    timezone) _q_timezone ;;
     locales)
       _q_input locales "Locales" "Type one or more locales, separated by spaces, like en_US.UTF-8 de_DE.UTF-8. They're checked against the stage3 later." ||
         return 1
       # Split like cfg_check_rules does: the value may hold tabs or a leading space.
       read -ra locs <<< "${CFG[locales]}"
-      if [[ " ${locs[*]} " != *" ${CFG[lang]} "* ]]; then cfg_set lang "${locs[0]}"; fi
+      if [[ " ${locs[*]} " != *" ${CFG[lang]:-} "* ]]; then cfg_set lang "${locs[0]}"; fi
       ;;
     lang)
       local -a args=()
@@ -646,9 +695,7 @@ _q_edit() { # KEY: opens the editor for one setting; returns 1 on back
         yes "Use Gentoo's binary packages." "Most packages download instead of compiling; a desktop installs in minutes." \
         no "Build everything from source." "A desktop then takes many hours."
       ;;
-    packages)
-      _q_input packages "Extra packages" "Package atoms separated by spaces, like app-editors/vim dev-vcs/git. The compile preview checks them once the package tree is downloaded."
-      ;;
+    packages) _q_packages ;;
     tune)
       _q_radio tune "Tune for this machine" "" no \
         no "Keep the generic settings." "They match the binary packages, so almost nothing compiles." \
@@ -701,11 +748,14 @@ _q_radio() { # KEY TITLE TEXT RECOMMENDED [TAG ITEM HELP]...
     if [[ $1 == "${CFG[$key]-}" ]]; then def=$1; fi
     shift 3
   done
-  # A value not on offer (a config's lang outside its locales) would leave nothing selected.
-  if [[ -z $def ]]; then def=${first[0]:-${rest[0]}}; fi
   while :; do
     v=$(ui_radio "$title" "$text" "$def" "${first[@]}" "${rest[@]}") || return 1
-    if _q_set "$key" "$v"; then return 0; fi
+    # dialog's Enter on a list with nothing selected returns nothing.
+    if [[ -z $v ]]; then
+      ui_msg "$title" "Nothing is selected. Press Space to select an option, then Enter."
+    elif _q_set "$key" "$v"; then
+      return 0
+    fi
   done
 }
 
@@ -761,6 +811,130 @@ _q_mirror() {
   cur=${CFG[mirror]}
   if [[ $cur != https://* ]]; then cur=https://; fi
   _q_input mirror "Mirror URL" "Type the mirror's https:// address, like https://mirror.example.org/gentoo." "$cur"
+}
+
+# --- Timezone ----------------------------------------------------------------
+
+# The ISO has no zoneinfo, so the list comes with the installer; stage3_check_answers checks the
+# answer against the stage3's.
+_q_timezone() {
+  local file=$GI_HOME/lib/timezones.tsv cur=${CFG[timezone]:-} region city zone where
+  local -a items=()
+  while :; do
+    region=$(ui_menu --ok Select "Timezone" "Pick the region, then the city whose time you use." "${cur%%/*}" \
+      Africa "Cairo, Lagos, Johannesburg" "" \
+      America "New York, Mexico City, Sao Paulo" "" \
+      Antarctica "Research stations" "" \
+      Arctic "Svalbard" "" \
+      Asia "Jerusalem, Kolkata, Tokyo" "" \
+      Atlantic "Azores, Canary Islands, Reykjavik" "" \
+      Australia "Sydney, Perth" "" \
+      Europe "London, Berlin, Moscow" "" \
+      Indian "Maldives, Mauritius" "" \
+      Pacific "Auckland, Honolulu, Fiji" "" \
+      UTC "Coordinated Universal Time" "No daylight saving time." \
+      Other... "Type a timezone name" "Any name in the tz database, like Etc/GMT-2.") || return 1
+    case $region in
+      UTC) if _q_set timezone UTC; then return 0; fi ;;
+      Other...)
+        if _q_input timezone "Timezone" "Type a timezone name, like Europe/Berlin. It's checked against the stage3 later."; then return 0; fi
+        ;;
+      *)
+        items=()
+        while IFS=$'\t' read -r zone where; do
+          if [[ $zone == "$region"/* ]]; then items+=("${zone#*/}" "$where" "$zone"); fi
+        done < "$file"
+        city=$(ui_menu --ok Select "Timezone: $region" "Pick the city whose time you use. Typing a letter jumps to the cities that start with it." \
+          "${cur#"$region"/}" "${items[@]}") || continue
+        if _q_set timezone "$region/$city"; then return 0; fi
+        ;;
+    esac
+  done
+}
+
+# --- Extra packages ----------------------------------------------------------
+
+# The ISO has neither fzf nor a package tree, so a run downloads fzf, checked against this
+# checksum, and Gentoo's one-line-per-package index once.
+GI_FZF_VERSION=0.74.5
+GI_FZF_SHA256=d47d7f882972c7d674dbbba998ffa4116e68379616ffac7695d0671e9a722c5f
+GI_PKG_INDEX=https://raw.githubusercontent.com/gentoo-mirror/gentoo/stable/metadata/pkg_desc_index
+
+_q_packages() {
+  local out rc=0
+  local text="Type package atoms separated by spaces, like app-editors/vim, >=dev-lang/rust-1.80 or gui-wm/niri::guru. The compile preview checks them once the package tree is downloaded."
+  if [[ $GI_UI == dialog ]]; then
+    if _q_fzf_get; then
+      out=$(_q_fzf_packages) || rc=$?
+      case $rc in
+        0)
+          _q_set packages "$out"
+          return
+          ;;
+        3) ;; # Ctrl+T: type them, starting from the ones picked
+        *) return 1 ;;
+      esac
+    else
+      ui_msg "Extra packages" "Couldn't download fzf or the package list, so type the packages instead. The log has the details."
+    fi
+  fi
+  _q_input packages "Extra packages" "$text" ${out+"$out"}
+}
+
+_q_fzf_get() {
+  local dir=$GI_RUN_DIR/fzf sum
+  if [[ -x $dir/fzf && -s $dir/packages ]]; then return 0; fi
+  ui_info "Extra packages" "Downloading fzf and Gentoo's package list..."
+  mkdir -p -- "$dir" &&
+    curl -fsSL --retry 3 -o "$dir/fzf.tar.gz" \
+      "https://github.com/junegunn/fzf/releases/download/v$GI_FZF_VERSION/fzf-$GI_FZF_VERSION-linux_amd64.tar.gz" &&
+    read -r sum _ < <(sha256sum -- "$dir/fzf.tar.gz") && [[ $sum == "$GI_FZF_SHA256" ]] &&
+    tar -xzf "$dir/fzf.tar.gz" -C "$dir" fzf &&
+    curl -fsSL --retry 3 "$GI_PKG_INDEX" | _q_pkg_index > "$dir/packages.tmp" &&
+    mv -f -- "$dir/packages.tmp" "$dir/packages" && return 0
+  log WARN "couldn't download fzf $GI_FZF_VERSION with checksum $GI_FZF_SHA256, or $GI_PKG_INDEX"
+  rm -f -- "$dir/fzf"
+  return 1
+}
+
+# pkg_desc_index's "cat/pkg VERSIONS: description" lines as "cat/pkg<TAB>description", without
+# the system accounts.
+_q_pkg_index() { sed -nE '/^acct-(group|user)\//d; s/^([^ ]+) [^:]*: /\1\t/p'; }
+
+# fzf's lines, "ATOM  description", from the index on stdin: the current atoms first.
+_q_pkg_lines() { # ATOM...
+  awk -F'\t' -v cur="$*" '
+    BEGIN { n = split(cur, c, " "); for (i = 1; i <= n; i++) want[c[i]] = 1 }
+    $1 in want { d[$1] = $2; next }
+    { rest[++m] = $1; desc[m] = $2 }
+    END {
+      for (i = 1; i <= n; i++) printf "%-36s %s\n", c[i], (c[i] in d ? d[c[i]] : "(typed, not in the list)")
+      for (i = 1; i <= m; i++) printf "%-36s %s\n", rest[i], desc[i]
+    }'
+}
+
+# Prints the atoms picked in fzf on one line. Returns 3 with them for Ctrl+T, or 1 on Esc.
+_q_fzf_packages() {
+  local dir=$GI_RUN_DIR/fzf out i load='' pick
+  local -a cur=()
+  read -ra cur <<< "${CFG[packages]:-}"
+  # The current atoms are the first lines; this marks them.
+  for ((i = 1; i <= ${#cur[@]}; i++)); do load+="pos($i)+toggle+"; done
+  # With nothing marked, fzf would return the line under the cursor.
+  # shellcheck disable=SC2016  # fzf's shell expands it
+  pick='if [ "$FZF_SELECT_COUNT" -gt 0 ]; then cut -d " " -f 1 {+f}; fi'
+  out=$(_q_pkg_lines "${cur[@]}" < "$dir/packages" | SHELL=/bin/sh "$dir/fzf" --multi --layout=reverse \
+    --color=bw --no-unicode --pointer='>' --marker='*' --prompt='Search: ' --exact --nth=1 --tiebreak=chunk \
+    --header=$'Space: select or unselect   Enter: done   Esc: back\nType part of a name to search. Ctrl+T: type atoms instead, for versions or overlays.' \
+    --bind=space:toggle --bind="load:${load}first" --bind="enter:become($pick)" \
+    --bind="ctrl-t:become(echo :type; $pick)") || return 1
+  if [[ $out == :type* ]]; then
+    out=${out#:type}
+    out=${out#$'\n'}
+    printf '%s\n' "${out//$'\n'/ }"
+    return 3
+  fi
+  printf '%s\n' "${out//$'\n'/ }"
 }
 
 _q_user_add() {
@@ -905,6 +1079,36 @@ _q_size() { # BYTES: decimal units, as disk makers label them
   fi
 }
 
+# The size of DISK's largest free space, as the disk menu shows sizes.
+_q_free_size() { # DISK
+  local n ss
+  read -r _ _ n ss < <(hw_disk_free "$1") || n=0 ss=0
+  _q_size $((n * ss))
+}
+
+# Checks for disk_mode=free that need the disk: a GPT, no earlier install's partitions, and room.
+_q_free_check() { # prints error: lines; returns 1 on one
+  local pt n ss min=20 name gib
+  name=$(_q_disk_name)
+  read -r pt _ n ss < <(hw_disk_free "${CFG[disk]}") || pt=unknown
+  if [[ $pt != gpt ]]; then
+    echo "error: Installing in free space needs a GPT partition table, and $name has ${pt/dos/an MBR one}. Install to the whole disk instead."
+    return 1
+  fi
+  if lsblk -nro PARTLABEL "/dev/$name" | grep -xE 'gentooinstall-(esp|root)' > /dev/null; then
+    echo "error: $name already has partitions from an earlier gentooinstall run. Delete them, or install to the whole disk."
+    return 1
+  fi
+  if [[ ${CFG[desktop]:-none} != none ]]; then min=40; fi
+  # 1 GiB more for the ESP, and 1 MiB for alignment.
+  if ((n * ss < (min + 1) * 1024 ** 3 + 1024 ** 2)); then
+    # GiB, as Windows' Disk Management counts its GB and MB.
+    gib=$(((n * ss * 10 + 1024 ** 3 / 2) / 1024 ** 3))
+    echo "error: The largest free space on $name is $((gib / 10)).$((gib % 10)) GiB, and Gentoo needs $((min + 1)) GiB in one piece: $min GiB for the system$(if ((min == 20)); then echo " (40 GiB with a desktop)"; fi) and 1 GiB for its boot partition. Shrink a partition from its own system first, like Windows' Disk Management, or install to the whole disk."
+    return 1
+  fi
+}
+
 _q_layout() {
   local luks='' swap='no swap'
   if [[ ${CFG[encryption]} == luks2 ]]; then luks=' in LUKS2'; fi
@@ -916,12 +1120,14 @@ _q_layout() {
 }
 
 _q_disk() {
-  local line byid name size tran model summary v text="Everything on the chosen disk will be deleted."
+  local line byid name size tran model summary v free='' text="Everything on the chosen disk will be deleted."
   local -a items=()
+  if [[ ${CFG[disk_mode]:-} == free ]]; then text="Gentoo goes into the largest free space of the chosen disk, and its partitions stay."; fi
   for line in "${GI_Q_DISKS[@]}"; do
     _q_disk_read "$line"
+    if [[ ${CFG[disk_mode]:-} == free ]]; then free="  $(_q_free_size "$byid") free"; fi
     # What's on the disk before the model, so an 80-column menu cuts the model instead.
-    items+=("$name" "$(_q_size "$size")  ${tran:-?}  ${summary:-no partitions found}  ${model:-unknown model}" "$byid")
+    items+=("$name" "$(_q_size "$size")  ${tran:-?}$free  ${summary:-no partitions found}  ${model:-unknown model}" "$byid")
   done
   if ((${#items[@]} == 0)); then
     ui_msg "Disk" "No disk to install to was found. The live USB is never offered."
@@ -944,12 +1150,16 @@ _q_disk() {
 _q_check() { # prints error: and warn: lines; returns 1 on an error
   local k rc=0
   local -a keys=()
+  # Callers run this in a subshell, so the questions never shown get their defaults here only.
+  cfg_defaults_apply
   cfg_check_rules || rc=1
   # After the disk step (the compile preview), the disk is in use and the review showed the rest.
   if cfg_is_locked disk; then return "$rc"; fi
   if [[ -n ${CFG[disk]:-} ]] && ! _q_disk_row > /dev/null; then
     echo "error: disk: ${CFG[disk]} isn't an installable disk: it's missing, under 20 GiB or the live USB."
     rc=1
+  elif [[ -n ${CFG[disk]:-} && ${CFG[disk_mode]} == free ]]; then
+    _q_free_check || rc=1
   fi
   # With SECRET emptied (in this subshell only), it lists every secret the answers use.
   mapfile -t keys < <(SECRET=(); cfg_secrets_missing "${GI_STEPS[@]}")
@@ -1001,13 +1211,23 @@ _q_review_text() {
     done < <(_q_keys "$s")
     printf '\n'
   done
-  printf 'Disk layout: 1 GiB ESP + %s\n' "$(_q_layout)"
+  if [[ ${CFG[disk_mode]} == free ]]; then
+    printf 'Disk layout: 1 GiB ESP + %s, in the free space; the other partitions stay\n' "$(_q_layout)"
+  else
+    printf 'Disk layout: 1 GiB ESP + %s\n' "$(_q_layout)"
+  fi
 }
 
 _q_confirm() {
   local line byid name size tran model summary text
   line=$(_q_disk_row) || return 1
   _q_disk_read "$line"
+  if [[ ${CFG[disk_mode]} == free ]]; then
+    printf -v text 'Disk     %s\nKeeps    %s\nAdds     1 GiB ESP + %s, in %s of free space\n\nType %s to confirm:' \
+      "$(_q_disk_label)" "${summary:-no partitions found}" "$(_q_layout)" "$(_q_free_size "$byid")" "$name"
+    ui_confirm_text "Install into the free space on $name?" "$text" "$name"
+    return
+  fi
   printf -v text 'Disk     %s\nNow on   %s. All of it will be deleted.\nLayout   1 GiB ESP + %s\n\nType %s to confirm:' \
     "$(_q_disk_label)" "${summary:-no partitions found}" "$(_q_layout)" "$name"
   ui_confirm_text "Erase $name and install?" "$text" "$name"

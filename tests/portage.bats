@@ -6,7 +6,8 @@ bats_require_minimum_version 1.5.0
 setup() {
   load helpers
   gi_setup
-  gi_load core ui config state stage3 portage
+  gi_load core ui config state disk stage3 portage
+  state_set windows.esp none
   HW=([cpu_threads]=8 [ram_mib]=15872 [x86_64_v3]=yes [cpu_flags]='aes avx avx2 mmx mmxext sse sse2')
   cfg_defaults_apply
   # The stage3 step measured these for mirror=fastest.

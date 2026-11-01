@@ -6,7 +6,8 @@ bats_require_minimum_version 1.5.0
 setup() {
   load helpers
   gi_setup
-  gi_load core ui config state kernel bootloader
+  gi_load core ui config state disk kernel bootloader
+  state_set windows.esp none
   cfg_defaults_apply
   mkdir -p "$GI_TARGET/efi/loader/entries" "$GI_TARGET/efi/abc/6.18.1" "$GI_TARGET/boot/grub"
   # What bootctl install leaves behind.
@@ -76,6 +77,14 @@ created() { printf 'efibootmgr --create --disk /dev/disk/by-id/nvme-Disk_1 --par
   [ "$(grep -c -- --create "$STUB_LOG")" -eq 1 ]
 }
 
+@test "the firmware entry names the ESP's partition number, which free space makes other than 1" {
+  echo feba97b8-dac0 > "$STUB_OUT_DIR/findmnt"
+  state_set disk.esp_part 5
+  run --separate-stderr errexit step_bootloader
+  [ "$status" -eq 0 ]
+  grep -qxF "$(created '\EFI\systemd\systemd-bootx64.efi' 'Linux Boot Manager' | sed 's/--part 1/--part 5/')" "$STUB_LOG"
+}
+
 @test "an entry that names this ESP and loader isn't created again, so a rerun adds none" {
   step_bootloader
   CFG[bootloader]=grub
@@ -128,6 +137,39 @@ created() { printf 'efibootmgr --create --disk /dev/disk/by-id/nvme-Disk_1 --par
   chroot_ran 'grub-install --target=x86_64-efi --efi-directory=/efi --removable'
   chroot_ran 'grub-mkconfig -o /boot/grub/grub.cfg'
   run ! grep -q bootctl "$STUB_LOG"
+}
+
+@test "beside Windows: GRUB gets a chainload entry before its config is made, systemd-boot a copy of its files" {
+  local dir=$GI_RUN_DIR/esp-probe f=$GI_TARGET/etc/grub.d/35_windows
+  state_set windows.esp '3333-p 3333-f'
+  CFG[bootloader]=grub
+  printf 'menuentry Gentoo {\n\tlinux /vmlinuz-6.18.1 root=UUID=x ro\n}\n' > "$GI_TARGET/boot/grub/grub.cfg"
+  run --separate-stderr errexit step_bootloader
+  [ "$status" -eq 0 ]
+  [ "$(stat -c %a "$f")" = 755 ]
+  [ "$(sh "$f")" = "menuentry 'Windows' --class windows {
+	insmod part_gpt
+	insmod fat
+	search --no-floppy --fs-uuid --set=root 3333-f
+	chainloader /EFI/Microsoft/Boot/bootmgfw.efi
+}" ]
+  run ! grep -q 'esp-probe' "$STUB_LOG"
+  # systemd-boot finds Windows only on its own ESP. The mount stub mounts nothing, so this is what
+  # Windows' ESP would show.
+  mkdir -p "$dir/EFI/Microsoft/Boot"
+  touch "$dir/EFI/Microsoft/Boot/bootmgfw.efi"
+  : > "$STUB_LOG"
+  CFG[bootloader]=systemd-boot
+  run --separate-stderr errexit step_bootloader
+  [ "$status" -eq 0 ]
+  [ "$(grep -E '^(mount|umount|cp) ' "$STUB_LOG")" = "mount -o ro -t vfat /dev/disk/by-partuuid/3333-p $dir
+umount $dir" ]
+  [ -f "$GI_TARGET/efi/EFI/Microsoft/Boot/bootmgfw.efi" ]
+  # Without Windows an earlier answer's GRUB file goes.
+  state_set windows.esp none
+  CFG[bootloader]=grub
+  run --separate-stderr errexit step_bootloader
+  [ ! -e "$f" ]
 }
 
 @test "GRUB: a config without a kernel fails" {

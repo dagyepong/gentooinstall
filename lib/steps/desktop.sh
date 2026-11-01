@@ -5,15 +5,47 @@ step_define desktop "Desktop" \
   "Installs the desktop or window manager with its login screen, fonts and a browser. On OpenRC, dbus and elogind must run for the desktop session, and display-manager-init starts the login screen." \
   "https://wiki.gentoo.org/wiki/Display_manager"
 
-# Prints sddm, gdm, lightdm, or nothing when the system boots to a text console. The window
-# managers never get a login screen; they start from the console.
+# Prints the login screen: sddm, gdm, lightdm, tuigreet or gtkgreet, or nothing when the system
+# boots to a text console.
 _desktop_dm() {
-  [[ ${CFG[display_manager]} == auto ]] || return 0
+  local dm
+  [[ ${CFG[desktop]} != none ]] || return 0
+  dm=$(cfg_login_screen)
+  if [[ $dm != none ]]; then echo "$dm"; fi
+}
+
+# The command that starts the desktop after a login on the console, which the greetd login
+# screens run too. Prints nothing without a desktop.
+desktop_start_cmd() {
+  local cmd wm=yes
   case ${CFG[desktop]} in
-    plasma) echo sddm ;;
-    gnome) echo gdm ;;
-    xfce | budgie | cinnamon) echo lightdm ;;
+    none) return 0 ;;
+    plasma) cmd='dbus-run-session startplasma-wayland' wm='' ;;
+    gnome) cmd='XDG_SESSION_TYPE=wayland dbus-run-session gnome-session' wm='' ;;
+    xfce) cmd=startxfce4 wm='' ;;
+    cinnamon) cmd='startx /usr/bin/cinnamon-session-cinnamon' wm='' ;;
+    budgie) cmd=startbudgielabwc wm='' ;;
+    # i3's config runs dex, which starts PipeWire's XDG autostart file like a desktop does.
+    i3) cmd='startx /usr/bin/i3' wm='' ;;
+    dwm) cmd='startx /usr/bin/dwm' ;;
+    # dwl sets no desktop name and exports nothing; xdg-desktop-portal needs both to serve it.
+    dwl) cmd='dwl -s "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=wlroots"' ;;
+    hyprland) cmd='start-hyprland' ;;
+    # The niri-session script needs systemd.
+    niri) if is_systemd; then cmd=niri-session; else cmd='niri --session'; fi ;;
+    mangowm) cmd=mango ;;
+    *) cmd=${CFG[desktop]} ;;
   esac
+  # On systemd, logging in starts the D-Bus session bus and PipeWire. On OpenRC the desktops
+  # start PipeWire through its XDG autostart file, which the other window managers don't read.
+  if is_openrc && [[ $cmd != *dbus-run-session* && $cmd != startxfce4 ]]; then
+    if [[ -n $wm ]] && hardware_pipewire; then
+      cmd="dbus-run-session sh -c 'gentoo-pipewire-launcher & exec $cmd'"
+    else
+      cmd="dbus-run-session $cmd"
+    fi
+  fi
+  printf '%s\n' "$cmd"
 }
 
 step_desktop_portage() {
@@ -57,6 +89,8 @@ step_desktop_portage() {
     kw+=${kw:+$'\n'}'app-misc/brightnessctl::guru ~amd64'
     use+=${use:+$'\n'}'app-misc/brightnessctl udev'
   fi
+  # gtkgreet is a testing package.
+  if [[ $(_desktop_dm) == gtkgreet ]]; then kw+=${kw:+$'\n'}'gui-apps/gtkgreet ~amd64'; fi
   _desktop_portage_file package.accept_keywords "$kw"
   _desktop_portage_file package.use "$use"
 }
@@ -102,10 +136,13 @@ step_desktop_packages() {
   esac
   # Xfce has no network applet of its own, and i3's default config starts this one.
   if [[ ${CFG[network]} == networkmanager && " xfce i3 " == *" ${CFG[desktop]} "* ]]; then p+=(gnome-extra/nm-applet); fi
+  # gtkgreet shows in Sway, which runs nothing else there.
   case $dm in
     sddm) p+=(gui-apps/sddm) ;;
     gdm) p+=(gnome-base/gdm) ;;
     lightdm) p+=(x11-misc/lightdm x11-misc/lightdm-gtk-greeter) ;;
+    tuigreet) p+=(gui-apps/tuigreet) ;;
+    gtkgreet) p+=(gui-apps/gtkgreet gui-wm/sway) ;;
   esac
   if [[ -n $dm ]] && is_openrc; then p+=(gui-libs/display-manager-init); fi
   p+=(media-fonts/noto media-fonts/noto-emoji media-fonts/dejavu)
@@ -130,6 +167,12 @@ step_desktop() {
   local dm
   [[ ${CFG[desktop]} != none ]] || return 0
   dm=$(_desktop_dm)
+  case $dm in
+    tuigreet | gtkgreet)
+      _desktop_greetd "$dm"
+      dm=greetd
+      ;;
+  esac
   if is_openrc; then
     service_enable dbus
     service_enable elogind boot
@@ -142,6 +185,40 @@ step_desktop() {
     run_chroot systemctl set-default graphical.target
   fi
   _desktop_wayland
+}
+
+# greetd shows the greeter as its own user, then runs start-desktop as the user who logged in:
+# the command first-steps.txt gives for a start from the console. VT 7 is display-manager-init's,
+# where no getty runs.
+_desktop_greetd() { # tuigreet|gtkgreet
+  local start=/usr/local/bin/start-desktop greeter k v layout='' model='' variant='' options=''
+  printf '#!/bin/sh\n# Written by gentooinstall: the login screen runs this after a login.\n%s\n' "$(desktop_start_cmd)" |
+    write_file "$start" 0755
+  if [[ $1 == tuigreet ]]; then
+    greeter="tuigreet --time --remember --asterisks --cmd $start"
+  else
+    greeter='sway --config /etc/greetd/sway-config'
+    # The password is typed in Sway, which reads no xorg.conf.d, so it gets the layout here.
+    while IFS='=' read -r k v; do printf -v "$k" '%s' "$v"; done < <(locale_xkb)
+    {
+      printf '# Written by gentooinstall: Sway only shows gtkgreet, which runs %s after a login.\n' "$start"
+      printf 'exec "gtkgreet -l -c %s; swaymsg exit"\n' "$start"
+      printf 'input type:keyboard {\n'
+      for k in layout model variant options; do
+        if [[ -n ${!k} ]]; then printf '    xkb_%s "%s"\n' "$k" "${!k}"; fi
+      done
+      printf '}\n'
+    } | write_file /etc/greetd/sway-config
+  fi
+  write_file /etc/greetd/config.toml << EOF
+# Written by gentooinstall: the login screen.
+[terminal]
+vt = 7
+
+[default_session]
+command = "$greeter"
+user = "greetd"
+EOF
 }
 
 # The Wayland sessions ignore xorg.conf.d, so each gets the locale step's X keyboard layout the way

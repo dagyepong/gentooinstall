@@ -60,14 +60,21 @@ _finish_rm_stage3() {
 }
 
 _finish_first_steps() {
-  local u hint
+  local u hint windows
   local -a users=()
   hint=$(_finish_desktop_hint)
+  windows=$(disk_windows_esp)
   read -ra users <<< "${CFG[users]}"
   for u in "${users[@]}"; do
     {
       printf 'First steps on your new Gentoo system\n\n'
       if [[ -n $hint ]]; then printf '%s\n\n' "$hint"; fi
+      if [[ -n $windows ]]; then
+        printf 'Windows is in the boot menu too. If it uses BitLocker, start it from the\nfirmware boot menu instead (a key like F12, F11 or Esc while the computer\nstarts): from this menu it asks for its recovery key. The hardware clock\nkeeps local time, as Windows does.\n\n'
+      fi
+      if [[ ${CFG[disk_mode]} == free ]]; then
+        printf 'The systems that were on the disk before are still there. Any not in the\nboot menu start from the firmware boot menu: press a key like F12, F11 or\nEsc while the computer starts.\n\n'
+      fi
       printf 'Lines starting with # need root: type %s in front of them if your\naccount is an admin, or log in as root.\n\n' "${CFG[privilege]}"
       _finish_savedconfig_hint
       _finish_hyprland_hint
@@ -103,35 +110,10 @@ EOF
 
 # How to start a desktop that has no login screen; prints nothing when there's no such desktop.
 _finish_desktop_hint() {
-  local cmd wm=yes why=''
+  local cmd why=''
   [[ ${CFG[desktop]} != none && -z $(_desktop_dm) ]] || return 0
-  case ${CFG[desktop]} in
-    plasma) cmd='dbus-run-session startplasma-wayland' wm='' ;;
-    gnome) cmd='XDG_SESSION_TYPE=wayland dbus-run-session gnome-session' wm='' ;;
-    xfce) cmd=startxfce4 wm='' ;;
-    cinnamon) cmd='startx /usr/bin/cinnamon-session-cinnamon' wm='' ;;
-    budgie) cmd=startbudgielabwc wm='' ;;
-    # i3's config runs dex, which starts PipeWire's XDG autostart file like a desktop does.
-    i3) cmd='startx /usr/bin/i3' wm='' ;;
-    dwm) cmd='startx /usr/bin/dwm' ;;
-    # dwl sets no desktop name and exports nothing; xdg-desktop-portal needs both to serve it.
-    dwl) cmd='dwl -s "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=wlroots"' ;;
-    hyprland) cmd='start-hyprland' ;;
-    # The niri-session script needs systemd.
-    niri) if is_systemd; then cmd=niri-session; else cmd='niri --session'; fi ;;
-    mangowm) cmd=mango ;;
-    *) cmd=${CFG[desktop]} ;;
-  esac
-  # On systemd, logging in starts the D-Bus session bus and PipeWire. On OpenRC the desktops
-  # start PipeWire through its XDG autostart file, which the other window managers don't read.
-  if is_openrc && [[ $cmd != *dbus-run-session* && $cmd != startxfce4 ]]; then
-    if [[ -n $wm ]] && hardware_pipewire; then
-      cmd="dbus-run-session sh -c 'gentoo-pipewire-launcher & exec $cmd'"
-      why=$'\nThat starts a D-Bus session and PipeWire for sound first.'
-    else
-      cmd="dbus-run-session $cmd"
-    fi
-  fi
+  cmd=$(desktop_start_cmd)
+  if [[ $cmd == *gentoo-pipewire-launcher* ]]; then why=$'\nThat starts a D-Bus session and PipeWire for sound first.'; fi
   printf 'There is no login screen: the system starts to a text console. Log in there,\nthen start the desktop with:\n  %s%s\n' "$cmd" "$why"
 }
 

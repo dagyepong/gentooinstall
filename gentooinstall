@@ -83,7 +83,7 @@ gi_resume() { # USER_CONFIG PSK_FROM_SECRETS
   cp -- "$dir/state" "$GI_RUN_DIR/state"
   CFG=()
   cfg_load "$dir/config" || exit 2
-  cfg_lock disk filesystem encryption swap init
+  cfg_lock disk disk_mode filesystem encryption swap init
   cfg_defaults_apply
   for k in "${!CFG[@]}"; do saved[$k]=${CFG[$k]}; done
   if [[ -n $1 ]]; then cfg_load "$1" || exit 2; fi
@@ -217,7 +217,8 @@ main() {
   if ((GI_EXPLAIN)); then cfg_set explain yes; fi
   questions_keymap
   preflight_run
-  cfg_defaults_apply
+  # A fresh run with questions leaves them unanswered; steps_run fills the ones never shown.
+  if ((GI_YES || GI_RESUME)); then cfg_defaults_apply; else cfg_defaults_apply ask; fi
   if ((GI_RESUME)); then gi_resume "$config" "$psk_given"; else questions_run; fi
   if [[ ${CFG[explain]} == yes ]]; then GI_EXPLAIN=1; fi
   steps_run

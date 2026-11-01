@@ -117,6 +117,51 @@ media-fonts/dejavu" ]
     chroot_line systemctl set-default graphical.target) "$STUB_LOG"
 }
 
+@test "tuigreet on OpenRC: greetd through display-manager, running the console start command after a login" {
+  gi_load hardware
+  CFG[desktop]=sway CFG[display_manager]=tuigreet
+  cfg_defaults_apply
+  [[ $(step_desktop_packages) == *$'sys-apps/xdg-desktop-portal-gtk\ngui-apps/tuigreet\ngui-libs/display-manager-init\n'* ]]
+  step_desktop
+  [ "$(cat "$DM")" = 'DISPLAYMANAGER="greetd"' ]
+  grep -qxF -- "$(chroot_line rc-update add display-manager default)" "$STUB_LOG"
+  [ "$(cat "$GI_TARGET/usr/local/bin/start-desktop")" = "#!/bin/sh
+# Written by gentooinstall: the login screen runs this after a login.
+dbus-run-session sh -c 'gentoo-pipewire-launcher & exec sway'" ]
+  [ "$(stat -c %a "$GI_TARGET/usr/local/bin/start-desktop")" = 755 ]
+  [ "$(cat "$GI_TARGET/etc/greetd/config.toml")" = '# Written by gentooinstall: the login screen.
+[terminal]
+vt = 7
+
+[default_session]
+command = "tuigreet --time --remember --asterisks --cmd /usr/local/bin/start-desktop"
+user = "greetd"' ]
+  [ ! -e "$GI_TARGET/etc/greetd/sway-config" ]
+}
+
+@test "gtkgreet on systemd: the greetd service, and Sway shows gtkgreet with the keyboard layout" {
+  gi_load hardware
+  CFG[desktop]=i3 CFG[init]=systemd CFG[display_manager]=gtkgreet CFG[keymap]=de-latin1
+  cfg_defaults_apply
+  [[ $(step_desktop_packages) == *$'gui-apps/gtkgreet\ngui-wm/sway\nmedia-fonts/noto'* ]]
+  step_desktop_portage
+  grep -qx 'gui-apps/gtkgreet ~amd64' "$GI_TARGET/etc/portage/package.accept_keywords/desktop"
+  step_desktop
+  diff -u <(chroot_line systemctl enable greetd
+    chroot_line systemctl set-default graphical.target) "$STUB_LOG"
+  [ "$(tail -n 1 "$GI_TARGET/usr/local/bin/start-desktop")" = 'startx /usr/bin/i3' ]
+  [ "$(cat "$GI_TARGET/etc/greetd/sway-config")" = '# Written by gentooinstall: Sway only shows gtkgreet, which runs /usr/local/bin/start-desktop after a login.
+exec "gtkgreet -l -c /usr/local/bin/start-desktop; swaymsg exit"
+input type:keyboard {
+    xkb_layout "de"
+}' ]
+  grep -qx 'command = "sway --config /etc/greetd/sway-config"' "$GI_TARGET/etc/greetd/config.toml"
+  # Another login screen leaves gtkgreet's keyword out.
+  CFG[display_manager]=tuigreet
+  step_desktop_portage
+  run ! grep -q gtkgreet "$GI_TARGET/etc/portage/package.accept_keywords/desktop"
+}
+
 @test "systemd without a display manager and no desktop at all run nothing" {
   CFG[init]=systemd CFG[display_manager]=none
   cfg_defaults_apply

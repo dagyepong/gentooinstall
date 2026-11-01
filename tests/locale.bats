@@ -6,7 +6,8 @@ bats_require_minimum_version 1.5.0
 setup() {
   load helpers
   gi_setup
-  gi_load core ui config state stage3 locale
+  gi_load core ui config state disk stage3 locale
+  state_set windows.esp none
   GI_UI=plain
   CFG[keymap]=de-latin1 CFG[timezone]=Europe/Berlin CFG[locales]="en_US.UTF-8 de_DE" CFG[lang]=en_US.UTF-8
   cfg_defaults_apply
@@ -49,6 +50,18 @@ chroot_ran() { grep -qxF "arch-chroot $(printf '%q' "$GI_TARGET") /bin/bash -c $
   grep -qx 'clock="UTC"' "$GI_TARGET/etc/conf.d/hwclock"
   grep -qx $'\tOption "XkbLayout" "de"' "$GI_TARGET/etc/X11/xorg.conf.d/00-keyboard.conf"
   run ! grep -q XkbVariant "$GI_TARGET/etc/X11/xorg.conf.d/00-keyboard.conf"
+}
+
+@test "beside Windows the hardware clock keeps local time, on OpenRC and systemd" {
+  state_set windows.esp '3333-p 3333-f'
+  step_locale
+  grep -qx 'clock="local"' "$GI_TARGET/etc/conf.d/hwclock"
+  CFG[init]=systemd
+  step_locale
+  [ "$(cat "$GI_TARGET/etc/adjtime")" = $'0.0 0 0.0\n0\nLOCAL' ]
+  state_set windows.esp none
+  step_locale
+  [ "$(cat "$GI_TARGET/etc/adjtime")" = $'0.0 0 0.0\n0\nUTC' ]
 }
 
 @test "the X window managers get the X keyboard file too; the console doesn't" {

@@ -157,7 +157,7 @@ $code"
 @test "back navigation leaves answers alone, and Quit asks before exiting 130" {
   q_run 'cfg_defaults_apply; questions_run' \
     3 1 b b \
-    2 2 3 b \
+    2 3 3 b \
     b '' \
     b y
   [ "$status" -eq 130 ]
@@ -171,7 +171,7 @@ $code"
 @test "a bad value shows cfg_set's error and is asked again" {
   q_run 'cfg_defaults_apply; questions_run' \
     5 2 Bad_Host laptop b \
-    6 1 Berlin Europe/Berlin 2 'en_US.UTF-8 de_DE.UTF-8' 3 2 b \
+    6 1 12 Berlin Europe/Berlin 2 'en_US.UTF-8 de_DE.UTF-8' 3 2 b \
     7 '' 'Bad Name' root larry pw pw '' b \
     b y
   [ "$status" -eq 130 ]
@@ -195,12 +195,12 @@ $code"
 
 @test "choosing LUKS2 asks for the passphrase right away; skipping it leaves a [!]" {
   q_run 'cfg_defaults_apply; questions_run' \
-    2 3 2 b \
-    3 '' 'pass phrase' 'pass phrase' '' \
+    2 4 2 b \
+    4 '' 'pass phrase' 'pass phrase' '' \
     b b y
   [ "$status" -eq 130 ]
   [[ $stderr == *"[!] LUKS passphrase not set"* ]]
-  [[ $stderr =~ 6\)\ (Done\ +)?Go\ back ]] # the TRIM through LUKS row appeared
+  [[ $stderr =~ 7\)\ (Done\ +)?Go\ back ]] # the TRIM through LUKS row appeared
   source "$STATE"
   [ "${CFG[encryption]}" = luks2 ]
   [ "${SECRET[luks_passphrase]}" = "pass phrase" ]
@@ -247,6 +247,45 @@ $code"
     '' '' '' y '' nvme0n1
   [ "$status" -eq 0 ]
   [ "$(grep -c '== Warnings ==' <<< "$stderr")" -eq 2 ]
+}
+
+@test "free space: the disk menu shows it, and the review and confirmation say what stays and what's added" {
+  q_run 'hw_disk_free() { echo "gpt 2048 100000000 512"; }
+    cfg_defaults_apply ask; CFG[keymap]=us; questions_run' \
+    2 1 2 '' 1 b b y
+  [ "$status" -eq 130 ]
+  [[ $stderr =~ Install\ to\ +\[\!\]\ not\ set ]]
+  [[ $stderr == *"Gentoo goes into the largest free space of the chosen disk, and its partitions stay."* ]]
+  [[ $stderr == *"nvme0n1  1.0 TB  nvme  51 GB free  Windows (NTFS), 4 partitions"* ]]
+  [[ $stderr =~ Install\ to\ +free\ space,\ keeping\ the\ partitions ]]
+  source "$STATE"
+  [ "${CFG[disk_mode]}" = free ]
+  q_run 'hw_disk_free() { echo "gpt 2048 100000000 512"; }
+    cfg_defaults_apply; cfg_set disk "$BIG"; cfg_set disk_mode free; cfg_set users larry; cfg_defaults_apply
+    SECRET[user.larry.password]=$PW SECRET[root_password]=$PW; questions_run; echo done' \
+    '' '' nvme0n1
+  [ "$status" -eq 0 ]
+  [ "$output" = done ]
+  [[ $stderr == *"Disk layout: 1 GiB ESP + ext4 root, zram swap, in the free space; the other partitions stay"* ]]
+  [[ $stderr == *"== Install into the free space on nvme0n1? =="* ]]
+  [[ $stderr == *"Keeps    Windows (NTFS), 4 partitions"$'\n'"Adds     1 GiB ESP + ext4 root, zram swap, in 51 GB of free space"* ]]
+  [[ $stderr != *"will be deleted"* ]]
+}
+
+@test "free space: Install is blocked without a GPT or with too little room, with what to do" {
+  local code='cfg_defaults_apply; cfg_set disk "$BIG"; cfg_set disk_mode free; cfg_set users larry
+    mapfile -t GI_Q_DISKS < <(hw_disks); _q_check'
+  q_run "hw_disk_free() { echo 'dos 0 0 512'; }; $code"
+  [ "$status" -eq 1 ]
+  [[ $output == *"error: Installing in free space needs a GPT partition table, and nvme0n1 has an MBR one. Install to the whole disk instead."* ]]
+  q_run "hw_disk_free() { echo 'gpt 2048 40000000 512'; }; $code"
+  [ "$status" -eq 1 ]
+  [[ $output == *"error: The largest free space on nvme0n1 is 19.1 GiB, and Gentoo needs 41 GiB in one piece: 40 GiB for the system and 1 GiB for its boot partition."* ]]
+  q_run "hw_disk_free() { echo 'gpt 2048 100000000 512'; }; $code"
+  [ "$status" -eq 0 ]
+  # Once the disk step ran, its own partitions fill the space, so the check is over.
+  q_run "hw_disk_free() { echo 'gpt 0 0 512'; }; ${code/_q_check/cfg_lock disk; _q_check}"
+  [ "$status" -eq 0 ]
 }
 
 @test "Install lists the sections that still need an answer" {
@@ -298,7 +337,7 @@ $code"
     SECRET[user.larry.password]=$PW SECRET[root_password]=$PW
     cfg_lock disk filesystem encryption swap init
     rc=0; questions_hub || rc=$?; echo "hub=$rc"'
-  q_run "$setup" 2 2 b ''
+  q_run "$setup" 2 3 b ''
   [ "$status" -eq 0 ]
   [ "$output" = hub=0 ]
   [[ $stderr == *"Continue"* ]]
@@ -399,9 +438,10 @@ $code"
   [ "${CFG[network]}" = networkmanager ]
 }
 
-@test "a value the menu doesn't offer defaults to the recommended one" {
-  q_run 'cfg_defaults_apply; CFG[network]=networkd; questions_run' 5 1 '' b b y
+@test "a value the menu doesn't offer leaves nothing selected, so Enter alone picks nothing" {
+  q_run 'cfg_defaults_apply; CFG[network]=networkd; questions_run' 5 1 '' 1 b b y
   [ "$status" -eq 130 ]
+  [[ $stderr == *"Not a valid choice."* ]]
   source "$STATE"
   [ "${CFG[network]}" = networkmanager ]
 }
@@ -453,7 +493,7 @@ $code"
   local typed=dialog-typed-secret-1 saved=$BATS_TEST_TMPDIR/saved.conf
   export DLG=$BATS_TEST_TMPDIR/dialog-replies
   # One "STATUS OUTPUT" line per dialog call, in order.
-  printf '%s\n' '0 de-latin1' '3 ' "0 $saved" '0 ' '0 Disk' '0 Disk' '0 nvme0n1' '0 Done' \
+  printf '%s\n' '0 ' '0 de-latin1' '3 ' "0 $saved" '0 ' '0 Disk' '0 Disk' '0 nvme0n1' '0 Done' \
     '0 Users' '0 larry' '0 Password' "0 $typed" "0 $typed" '0 Done' '0 Done' \
     '0 Install' '0 ' '0 ' '0 nvme0n1' > "$DLG"
   q_run 'GI_UI=dialog
@@ -471,7 +511,9 @@ $code"
   [ "$status" -eq 0 ]
   [ "$output" = done ]
   [ ! -s "$DLG" ]
-  [ "$(grep -c '^dialog ' "$STUB_LOG")" -eq 19 ]
+  [ "$(grep -c '^dialog ' "$STUB_LOG")" -eq 20 ]
+  # The keys come first, and every dialog gets the black and white colors.
+  head -n 1 "$STUB_LOG" | grep -qF -- '--title Controls --msgbox'
   grep -qx 'loadkeys de-latin1' "$STUB_LOG"
   grep -F -- '--title Keyboard\ layout --cancel-label Quit' "$STUB_LOG" | grep -qF -- '--default-item us --menu'
   grep -F -- '--title Disk\ to\ erase' "$STUB_LOG" | grep -qF -- ' --menu '
@@ -576,8 +618,8 @@ $code"
 @test "Desktop rows follow the desktop: login screen, GNOME variant, and no browser or CJK fonts on the console" {
   q_run 'source "$GI_HOME/lib/steps/hardware.sh"; cfg_defaults_apply; questions_run' 4 1 "$(desktop_choice gnome)" 1 "$(desktop_choice none)" b b y
   [ "$status" -eq 130 ]
-  [[ $stderr =~ Login\ screen\ +auto\ \(SDDM\) ]]
-  [[ $stderr =~ GNOME\ variant\ +light.*Login\ screen\ +auto\ \(GDM\) ]]
+  [[ $stderr =~ Login\ screen\ +auto:\ SDDM,\ graphical ]]
+  [[ $stderr =~ GNOME\ variant\ +light.*Login\ screen\ +auto:\ GDM,\ graphical ]]
   # The last Desktop submenu, after choosing console only.
   local last=${stderr##*== Desktop ==}
   last=${last%%== Install Gentoo ==*}
@@ -591,19 +633,20 @@ $code"
   [ "${CFG[browser]}" = firefox-bin ]
 }
 
-@test "the new desktops: LightDM for Xfce, no login screen row for window managers, overlay help" {
+@test "the new desktops: LightDM for Xfce, a login screen row for window managers too, overlay help" {
   q_run 'source "$GI_HOME/lib/steps/hardware.sh"; cfg_defaults_apply; questions_run' 4 1 '?' "$(desktop_choice xfce)" 1 "$(desktop_choice i3)" b b y
   [ "$status" -eq 130 ]
   [[ $stderr == *" 13) none      Console only."* ]]
-  [[ $stderr == *"Budgie, with LightDM.: From a third-party overlay that Gentoo doesn't review. Builds from source."* ]]
+  [[ $stderr == *"Budgie.: From a third-party overlay that Gentoo doesn't review. Builds from source."* ]]
   [[ $stderr == *"Hyprland, tiling for Wayland.: From a third-party overlay that Gentoo doesn't review. Builds from source."* ]]
   [[ $stderr == *"Niri, scrolling tiles, Wayland.: From GURU, a user overlay that Gentoo doesn't review. Builds from source."* ]]
   [[ $stderr == *"MangoWM, tiling for Wayland.: From GURU, a user overlay that Gentoo doesn't review. Builds from source."* ]]
-  [[ $stderr =~ Login\ screen\ +auto\ \(LightDM\) ]]
+  [[ $stderr =~ Login\ screen\ +auto:\ LightDM,\ graphical ]]
   local last=${stderr##*== Desktop ==}
   last=${last%%== Install Gentoo ==*}
   [[ $last =~ Desktop\ +i3 ]]
-  [[ $last != *"Login screen"* ]]
+  # auto keeps what older configs gave the window managers: no login screen.
+  [[ $last =~ Login\ screen\ +auto:\ none,\ log\ in\ on\ the\ console ]]
   [[ $last == *Browser* ]]
   [[ $stderr == *"Desktop   i3, pipewire, Bluetooth, ppd, firefox-bin"* ]]
   source "$STATE"
@@ -613,7 +656,7 @@ $code"
 
 @test "Media keys: a row for sway, Hyprland and niri only, off by default, with GURU named where it adds it" {
   local code='source "$GI_HOME/lib/steps/hardware.sh"; cfg_defaults_apply; questions_run'
-  q_run "$code" 4 1 "$(desktop_choice sway)" 7 '?' 2 1 "$(desktop_choice i3)" b b y
+  q_run "$code" 4 1 "$(desktop_choice sway)" 8 '?' 2 1 "$(desktop_choice i3)" b b y
   [ "$status" -eq 130 ]
   # Plasma, the default, has none.
   local first=${stderr#*== Desktop ==}
@@ -630,10 +673,10 @@ $code"
   [[ $last != *"Media keys"* ]]
   source "$STATE"
   [ "${CFG[media_keys]}" = yes ]
-  q_run "$code" 4 1 "$(desktop_choice hyprland)" 7 '?' 2 b b y
+  q_run "$code" 4 1 "$(desktop_choice hyprland)" 8 '?' 2 b b y
   [[ $stderr == *"Hyprland's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source."* ]]
   [[ $stderr == *"Install them.: brightnessctl is from GURU, a user overlay that Gentoo doesn't review."* ]]
-  q_run "$code" 4 1 "$(desktop_choice niri)" 7 '?' 2 b b y
+  q_run "$code" 4 1 "$(desktop_choice niri)" 8 '?' 2 b b y
   [[ $stderr == *"Niri's default config calls brightnessctl and playerctl for the brightness and player keys. Installing them builds 2 small packages from source."* ]]
   [[ $stderr == *"Install them.: Builds them from source."* ]]
 }
@@ -698,13 +741,183 @@ $code"
   done
 }
 
-@test "the login screen the menus name is the one the desktop step installs, for every desktop" {
+@test "the login screen menu offers each desktop's login screens, and auto keeps what older configs got" {
   gi_load core ui config state questions desktop
-  local d q
-  CFG[display_manager]=auto
+  local d want help
+  ui_radio() { printf '%s\n' "$@" > "$BATS_TEST_TMPDIR/radio"; return 1; }
   for d in plasma gnome xfce budgie cinnamon i3 sway hyprland niri mangowm dwm dwl none; do
-    CFG[desktop]=$d
-    q=$(_q_login_screen)
-    [ "${q,,}" = "$(_desktop_dm)" ] || { echo "$d: $q"; false; }
+    CFG[desktop]=$d CFG[display_manager]=auto
+    case $d in
+      plasma) want=sddm ;;
+      gnome) want=gdm ;;
+      xfce | budgie | cinnamon) want=lightdm ;;
+      *) want='' ;;
+    esac
+    [ "$(_desktop_dm)" = "$want" ] || { echo "$d auto: $(_desktop_dm)"; false; }
+    [ "$d" != none ] || continue
+    CFG[display_manager]=tuigreet
+    [ "$(_desktop_dm)" = tuigreet ]
+    CFG[display_manager]=none
+    [ -z "$(_desktop_dm)" ]
+    _q_edit display_manager || true
+    # TITLE TEXT DEFAULT, then TAG ITEM HELP for each choice: the rules' list, the recommended first.
+    [ "$(sed -n '4~3p' "$BATS_TEST_TMPDIR/radio" | sort | tr '\n' ' ')" = "$(tr ' ' '\n' <<< "$(cfg_login_screens "$d")" | sort | tr '\n' ' ')" ]
+    [[ $(sed -n 5p "$BATS_TEST_TMPDIR/radio") == *Recommended. ]]
+    # dialog drops the words past 78 characters.
+    while IFS= read -r help; do ((${#help} <= 78)) || { echo "$d: $help"; false; }; done < <(sed -n '6~3p' "$BATS_TEST_TMPDIR/radio")
+    [ -n "$(_q_dm_name "$(sed -n 4p "$BATS_TEST_TMPDIR/radio")")" ]
   done
+}
+
+@test "a new run leaves every question unanswered and marked, and the hidden ones get defaults at Install" {
+  q_run 'cfg_defaults_apply ask; CFG[keymap]=us; questions_run' \
+    4 1 "$(desktop_choice sway)" 2 1 b b y
+  [ "$status" -eq 130 ]
+  [[ $stderr =~ Disk\ +\[\!\]\ not\ set ]]
+  [[ $stderr =~ System\ +\[\!\]\ not\ set ]]
+  [[ $stderr =~ Desktop\ +\[\!\]\ not\ set ]]
+  [[ $stderr =~ Locale\ +\[\!\]\ not\ set ]]
+  # No answer is pre-selected: the Desktop list marks none with *.
+  local desk=${stderr#*== Desktop ==}
+  desk=${desk#*== Desktop ==}
+  desk=${desk%%Choice*}
+  [[ $desk != *"*"* ]]
+  # Only the desktop's own rows show, each marked until it's answered.
+  local last=${stderr##*== Desktop ==}
+  last=${last%%== Install Gentoo ==*}
+  [[ $last =~ Login\ screen\ +tuigreet,\ text ]]
+  [[ $last =~ Audio\ +\[\!\]\ not\ set ]]
+  [[ $last =~ Media\ keys\ +\[\!\]\ not\ set ]]
+  [[ $last != *"GNOME variant"* ]]
+  source "$STATE"
+  [ "${CFG[desktop]}" = sway ]
+  [ "${CFG[display_manager]}" = tuigreet ]
+  [ -z "${CFG[filesystem]+x}" ]
+  [ "${CFG[mirror]}" = cdn ]
+  # At Install the rules see the hidden questions' defaults, as steps_run gives them.
+  q_run 'cfg_defaults_apply; unset "CFG[luks_discard]" "CFG[gnome_variant]"; cfg_set disk "$BIG"; cfg_set users larry
+    mapfile -t GI_Q_DISKS < <(hw_disks); out=$(_q_check) && echo "ok ${CFG[luks_discard]-unset}"'
+  [ "$output" = "ok unset" ]
+}
+
+@test "the hub's summaries read only questions that were asked: no thermald on AMD, no Keep Wi-Fi with dhcpcd" {
+  q_run 'HW[cpu_vendor]=amd HW[wifi_ssid]=cafe; source "$GI_HOME/lib/steps/hardware.sh"; cfg_defaults_apply ask; CFG[keymap]=us
+    cfg_set network dhcpcd; cfg_set hostname laptop; cfg_set sshd no; cfg_set explain no; cfg_set fwupd yes; questions_run' b y
+  [ "$status" -eq 130 ]
+  [[ $stderr =~ Network\ +dhcpcd,\ laptop ]]
+  [[ $stderr =~ Options\ +explain\ mode\ off,\ fwupd ]]
+}
+
+@test "changing the desktop drops a login screen the new one doesn't offer" {
+  q_run 'source "$GI_HOME/lib/steps/hardware.sh"; cfg_defaults_apply; questions_run' \
+    4 1 "$(desktop_choice plasma)" 2 1 1 "$(desktop_choice sway)" b b y
+  [ "$status" -eq 130 ]
+  [[ $stderr =~ Login\ screen\ +SDDM,\ graphical ]]
+  local last=${stderr##*== Desktop ==}
+  last=${last%%== Install Gentoo ==*}
+  [[ $last =~ Login\ screen\ +\[\!\]\ not\ set ]]
+  source "$STATE"
+  [ -z "${CFG[display_manager]+x}" ]
+  q_run 'source "$GI_HOME/lib/steps/hardware.sh"; cfg_defaults_apply; cfg_set display_manager tuigreet; questions_run' \
+    4 1 "$(desktop_choice sway)" b b y
+  source "$STATE"
+  [ "${CFG[display_manager]}" = tuigreet ]
+}
+
+@test "dialog's Enter on a list with nothing selected asks again" {
+  gi_load core ui config state questions
+  # Called in a subshell, so it counts its calls in a file.
+  ui_radio() {
+    echo >> "$BATS_TEST_TMPDIR/calls"
+    if (($(wc -l < "$BATS_TEST_TMPDIR/calls") == 1)); then echo ''; else echo xfs; fi
+  }
+  ui_msg() { echo "msg: $2" >> "$BATS_TEST_TMPDIR/msgs"; }
+  _q_edit filesystem
+  [ "${CFG[filesystem]}" = xfs ]
+  [ "$(cat "$BATS_TEST_TMPDIR/msgs")" = "msg: Nothing is selected. Press Space to select an option, then Enter." ]
+}
+
+@test "the timezone is picked by region and city, UTC directly, or typed under Other..." {
+  local asia=5 jer # Africa, America, Antarctica, Arctic, Asia
+  jer=$(grep '^Asia/' "$GI_HOME/lib/timezones.tsv" | grep -n '^Asia/Jerusalem' | cut -d: -f1)
+  q_run 'cfg_defaults_apply ask; CFG[keymap]=us; questions_run' 6 1 "$asia" "$jer" b b y
+  [ "$status" -eq 130 ]
+  [[ $stderr == *"== Timezone: Asia =="* ]]
+  [[ $stderr =~ Jerusalem\ +Israel ]]
+  source "$STATE"
+  [ "${CFG[timezone]}" = Asia/Jerusalem ]
+  # The city list of another region has no default, so Enter alone picks nothing there.
+  q_run 'cfg_defaults_apply; CFG[timezone]=Asia/Jerusalem; questions_run' 6 1 '' b 1 '' 1 b b y
+  [[ $stderr == *"== Timezone: Asia =="*"Choice [Enter = Jerusalem]"* ]]
+  [[ $stderr == *"== Timezone: Africa =="*"Not a valid choice."* ]]
+  source "$STATE"
+  [ "${CFG[timezone]}" = Africa/Abidjan ]
+  q_run 'cfg_defaults_apply ask; CFG[keymap]=us; questions_run' 6 1 11 b b y
+  source "$STATE"
+  [ "${CFG[timezone]}" = UTC ]
+}
+
+@test "the timezone list names real zones, each one once" {
+  gi_load core config
+  local zone where n=0
+  while IFS=$'\t' read -r zone where; do
+    [[ $zone == \#* ]] && continue
+    n=$((n + 1))
+    [[ -n $where ]] || { echo "no place: $zone"; false; }
+    run cfg_validate timezone "$zone"
+    [ "$status" -eq 0 ] || { echo "$zone: $output"; false; }
+  done < "$GI_HOME/lib/timezones.tsv"
+  ((n > 400))
+  [ -z "$(grep -v '^#' "$GI_HOME/lib/timezones.tsv" | cut -f1 | sort | uniq -d)" ]
+}
+
+@test "extra packages: the index becomes one line per package, the current ones first" {
+  gi_load core ui config state questions
+  local lines
+  printf '%s\n' 'acct-group/adm 0-r3: System group: adm' \
+    'app-editors/vim 9.1.1 9.2.0: Vim, an improved vi-style text editor' \
+    'media-fonts/font-adobe-100dpi 1.0.4: X.Org Adobe bitmap fonts' \
+    'dev-vcs/git 2.50.0: stupid content tracker: distributed VCS' > "$BATS_TEST_TMPDIR/index"
+  _q_pkg_index < "$BATS_TEST_TMPDIR/index" > "$BATS_TEST_TMPDIR/list"
+  [ "$(cat "$BATS_TEST_TMPDIR/list")" = $'app-editors/vim\tVim, an improved vi-style text editor\nmedia-fonts/font-adobe-100dpi\tX.Org Adobe bitmap fonts\ndev-vcs/git\tstupid content tracker: distributed VCS' ]
+  lines=$(_q_pkg_lines dev-vcs/git '>=dev-lang/rust-1.80' < "$BATS_TEST_TMPDIR/list")
+  [ "$(cut -c1-37 <<< "$lines" | sed 's/ *$//')" = $'dev-vcs/git\n>=dev-lang/rust-1.80\napp-editors/vim\nmedia-fonts/font-adobe-100dpi' ]
+  [[ $(sed -n 2p <<< "$lines") == *"(typed, not in the list)" ]]
+}
+
+@test "extra packages: fzf marks the current ones, and Ctrl+T hands the picks to the typed question" {
+  gi_load core ui config state questions
+  mkdir -p "$GI_RUN_DIR/fzf"
+  printf 'app-editors/vim\tVim\ndev-vcs/git\tGit\n' > "$GI_RUN_DIR/fzf/packages"
+  # Records its arguments and input, then prints what the test asks for.
+  cat > "$GI_RUN_DIR/fzf/fzf" << 'EOF'
+#!/bin/sh
+printf '%s\n' "$@" > "$FZF_ARGS"
+cat > "$FZF_INPUT"
+printf "$FZF_REPLY"
+exit "${FZF_RC:-0}"
+EOF
+  chmod +x "$GI_RUN_DIR/fzf/fzf"
+  export FZF_ARGS=$BATS_TEST_TMPDIR/args FZF_INPUT=$BATS_TEST_TMPDIR/input FZF_REPLY='app-editors/vim\ndev-vcs/git\n'
+  CFG[packages]=dev-vcs/git
+  run _q_fzf_packages
+  [ "$status" -eq 0 ]
+  [ "$output" = 'app-editors/vim dev-vcs/git' ]
+  grep -qx -- '--bind=load:pos(1)+toggle+first' "$FZF_ARGS"
+  grep -qx -- '--multi' "$FZF_ARGS"
+  [ "$(head -n 1 "$FZF_INPUT" | cut -d ' ' -f 1)" = dev-vcs/git ]
+  FZF_REPLY=':type\napp-editors/vim\n' run _q_fzf_packages
+  [ "$status" -eq 3 ]
+  [ "$output" = app-editors/vim ]
+  FZF_REPLY='' FZF_RC=130 run _q_fzf_packages
+  [ "$status" -eq 1 ]
+}
+
+@test "extra packages: an fzf that doesn't match the pinned checksum is never run" {
+  gi_load core ui config state questions
+  # The curl stub writes nothing, so the checksum can't match.
+  run _q_fzf_get
+  [ "$status" -eq 1 ]
+  [ ! -e "$GI_RUN_DIR/fzf/fzf" ]
+  grep -q "couldn't download fzf $GI_FZF_VERSION with checksum $GI_FZF_SHA256" "$GI_LOG"
 }

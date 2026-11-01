@@ -10,7 +10,7 @@ _hardware_thermald() { [[ ${CFG[thermald]} == yes && ${HW[cpu_vendor]:-} == inte
 # On OpenRC only a desktop session starts PipeWire (its XDG autostart, or for a window manager the
 # start command the finish step gives), and a console-only system has neither elogind nor a D-Bus
 # session for it, so sound there goes through ALSA alone.
-hardware_pipewire() { [[ ${CFG[audio]} == pipewire ]] && { [[ ${CFG[desktop]} != none ]] || is_systemd; }; }
+hardware_pipewire() { [[ ${CFG[audio]:-} == pipewire ]] && { [[ ${CFG[desktop]:-none} != none ]] || is_systemd; }; }
 
 step_hardware_portage() {
   local f=/etc/portage/package.use/pipewire t=/etc/portage/package.use/tlp p=/etc/portage/package.use/power-profiles-daemon

@@ -18,7 +18,15 @@ setup() {
 # shellcheck shell=bash
 questions_keymap() { echo "keymap:${CFG[keymap]:-ask}" >> "$CALLS"; if ((GI_RESUME)); then CFG[keymap]=${START_KEYMAP:-de-latin1}; fi; }
 preflight_run() { HW[boot_mode]=uefi; echo preflight >> "$CALLS"; }
-questions_run() { echo questions >> "$CALLS"; cfg_check_rules >&2 || exit 2; }
+# Asked, every question the config leaves out is unset until the user takes its default.
+questions_run() {
+  echo questions >> "$CALLS"
+  if ((!GI_YES)); then
+    echo "filesystem=${CFG[filesystem]-unset} hostname=${CFG[hostname]-unset}" >> "$CALLS"
+    cfg_defaults_apply
+  fi
+  cfg_check_rules >&2 || exit 2
+}
 disk_resume_mount() { echo resume_mount >> "$CALLS"; }
 hw_disk_size_bytes() { echo $((500 * 1024 ** 3)); }
 EOF
@@ -81,7 +89,7 @@ gi() { "$TREE/gentooinstall" "$@"; }
 @test "dry run goes through the flow and changes nothing" {
   run --separate-stderr gi --dry-run --no-tui --config "$BATS_TEST_TMPDIR/config" --secrets "$BATS_TEST_TMPDIR/secrets"
   [ "$status" -eq 0 ]
-  [ "$(cat "$CALLS")" = $'keymap:de-latin1\npreflight\nquestions' ]
+  [ "$(cat "$CALLS")" = $'keymap:de-latin1\npreflight\nquestions\nfilesystem=unset hostname=laptop' ]
   [[ $stderr == *"wipefs --all /dev/disk/by-id/nvme-Fake_SSD_123"* ]]
   [[ $stderr == *"emerge --update @world"* ]]
   [[ $stderr == *"[16/16] Title finish"* ]]
