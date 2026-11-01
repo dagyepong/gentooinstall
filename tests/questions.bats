@@ -255,7 +255,7 @@ $code"
     2 1 2 '' 1 b b y
   [ "$status" -eq 130 ]
   [[ $stderr =~ Install\ to\ +\[\!\]\ not\ set ]]
-  [[ $stderr == *"Gentoo goes into the largest free space of the chosen disk, and its partitions stay."* ]]
+  [[ $stderr == *"== Disk to install to =="$'\n'"Gentoo goes into the largest free space of the chosen disk, and its partitions stay."* ]]
   [[ $stderr == *"nvme0n1  1.0 TB  nvme  51 GB free  Windows (NTFS), 4 partitions"* ]]
   [[ $stderr =~ Install\ to\ +free\ space,\ keeping\ the\ partitions ]]
   source "$STATE"

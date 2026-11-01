@@ -1187,9 +1187,12 @@ _q_layout() {
 }
 
 _q_disk() {
-  local line byid name size tran model summary v free='' text="Everything on the chosen disk will be deleted."
+  local line byid name size tran model summary v free='' title="Disk to erase" text="Everything on the chosen disk will be deleted."
   local -a items=()
-  if [[ ${CFG[disk_mode]:-} == free ]]; then text="Gentoo goes into the largest free space of the chosen disk, and its partitions stay."; fi
+  if [[ ${CFG[disk_mode]:-} == free ]]; then
+    title="Disk to install to"
+    text="Gentoo goes into the largest free space of the chosen disk, and its partitions stay."
+  fi
   for line in "${GI_Q_DISKS[@]}"; do
     _q_disk_read "$line"
     if [[ ${CFG[disk_mode]:-} == free ]]; then free="  $(_q_free_size "$byid") free"; fi
@@ -1203,7 +1206,7 @@ _q_disk() {
   if [[ -n ${HW[live_disk]:-} ]]; then text+=" The live USB, ${HW[live_disk]}, isn't listed."; fi
   while :; do
     # A menu, not a radiolist: with no disk chosen yet, dialog's Enter on a radiolist returns nothing.
-    v=$(ui_menu --ok Select "Disk to erase" "$text" "$(_q_disk_name)" "${items[@]}") || return 1
+    v=$(ui_menu --ok Select "$title" "$text" "$(_q_disk_name)" "${items[@]}") || return 1
     for line in "${GI_Q_DISKS[@]}"; do
       _q_disk_read "$line"
       if [[ $name == "$v" ]] && _q_set disk "$byid"; then return 0; fi

@@ -2,6 +2,8 @@
 
 A guided installer for Gentoo Linux, like Arch's `archinstall`. You answer a few questions in a menu, and it installs Gentoo the way the [AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64) does, using prebuilt packages wherever it can.
 
+![The installer's menus: the keys, sections still needing an answer, installing into free space, a desktop and login screen, the timezone picker and the package search](docs/demo.gif)
+
 **It erases the whole disk you pick**, unless you install into its free space, next to Windows or another system (see [Next to Windows](#next-to-windows)).
 
 Status: early. Tested in virtual machines and on one laptop.
@@ -84,3 +86,7 @@ Everything it runs is logged in `/tmp/gentooinstall/`, and copied to `/var/log/g
 tests/bootstrap.sh   # once: downloads shellcheck and bats
 tests/run.sh         # runs every test
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
