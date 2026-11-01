@@ -91,7 +91,7 @@ Please report problems here, not to Gentoo.
 
 ## Development
 
-`SPEC.md` describes what the installer does, and `ARCHITECTURE.md` how the code fits together. Tests never run as root or change your system:
+Contributions are welcome, including ones made with AI help; see [CONTRIBUTING.md](CONTRIBUTING.md). `SPEC.md` describes what the installer does, and `ARCHITECTURE.md` how the code fits together. Tests never run as root or change your system:
 
 ```sh
 tests/bootstrap.sh   # once: downloads shellcheck and bats
